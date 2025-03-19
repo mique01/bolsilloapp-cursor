@@ -629,7 +629,7 @@ export default function Home() {
           <div className="bg-[#1e293b] rounded-xl border border-gray-800 shadow-lg overflow-hidden flex flex-col">
             <div className="bg-gradient-to-r from-purple-800/30 to-indigo-800/30 p-4 border-b border-gray-800">
               <h2 className="text-lg font-medium text-gray-100">Asistente Financiero</h2>
-              <p className="text-gray-400 text-sm">Registra transacciones conversando (ej: "gasté 1 luca en el kiosco", "papá me mandó 5 lucas")</p>
+              <p className="text-gray-400 text-sm">Registra transacciones conversando (ej: &quot;gasté 1 luca en el kiosco&quot;, &quot;papá me mandó 5 lucas&quot;)</p>
             </div>
             
             <div className="flex-1 p-4 overflow-y-auto max-h-[400px] space-y-4">

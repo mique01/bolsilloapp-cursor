@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Receipt, Search, FolderPlus, Download, Trash, FileText, Upload, Edit, Save, X, Folder, ChevronRight, Link as LinkIcon } from 'lucide-react';
 import Link from 'next/link';
 
@@ -33,6 +33,29 @@ export default function Comprobantes() {
   const [editingFolderId, setEditingFolderId] = useState<string>('');
   const [editingFolderName, setEditingFolderName] = useState('');
 
+  const filterComprobantes = useCallback(() => {
+    let filtered = comprobantes;
+    
+    // Filtrar por carpeta actual si está seleccionada
+    if (currentFolder) {
+      filtered = filtered.filter(comp => comp.folderId === currentFolder);
+    }
+    
+    // Aplicar filtro de búsqueda
+    if (searchTerm) {
+      filtered = filtered.filter(comp => 
+        comp.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        comp.fileName.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    setFilteredComprobantes(filtered);
+  }, [searchTerm, comprobantes, currentFolder]);
+
+  useEffect(() => {
+    filterComprobantes();
+  }, [filterComprobantes]);
+
   useEffect(() => {
     // Cargar carpetas del localStorage
     const savedFolders = localStorage.getItem('folders');
@@ -57,29 +80,6 @@ export default function Comprobantes() {
       setFilteredComprobantes(parsed);
     }
   }, []);
-
-  useEffect(() => {
-    filterComprobantes();
-  }, [searchTerm, comprobantes, currentFolder]);
-
-  const filterComprobantes = () => {
-    let filtered = comprobantes;
-    
-    // Filtrar por carpeta actual si está seleccionada
-    if (currentFolder) {
-      filtered = filtered.filter(comp => comp.folderId === currentFolder);
-    }
-    
-    // Filtrar por término de búsqueda
-    if (searchTerm) {
-      filtered = filtered.filter(comp => 
-        comp.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        comp.fileName.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    
-    setFilteredComprobantes(filtered);
-  };
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
