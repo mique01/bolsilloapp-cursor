@@ -52,6 +52,7 @@ export default function Comprobantes() {
     setFilteredComprobantes(filtered);
   }, [searchTerm, comprobantes, currentFolder]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     filterComprobantes();
   }, [filterComprobantes]);
