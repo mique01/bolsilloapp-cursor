@@ -20,12 +20,7 @@ export default function ResetPasswordPage() {
     setLoading(true);
     
     try {
-      const { error } = await resetPassword(email);
-      
-      if (error) {
-        throw new Error(error.message);
-      }
-      
+      await resetPassword(email);
       setSuccess('Se ha enviado un enlace de recuperación a tu correo electrónico. Por favor, revisa tu bandeja de entrada.');
       setEmail('');
     } catch (err) {
