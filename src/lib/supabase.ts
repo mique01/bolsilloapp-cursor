@@ -1,21 +1,30 @@
 import { createClient } from '@supabase/supabase-js';
 import { SupabaseClientType, MockSupabaseClient } from './types/supabase';
 
-// Create a lazy-loaded variable that only gets initialized when needed
-let supabaseInstance: SupabaseClientType | null = null;
-
-// Safely create a Supabase client (or mock client)
-const createSupabaseClient = (): SupabaseClientType => {
-  // Safely access environment variables only at runtime
-  // Using optional chaining to avoid errors during build
+// Función para obtener las credenciales de Supabase de manera segura
+const getSupabaseCredentials = () => {
   const supabaseUrl = process?.env?.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseAnonKey = process?.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-  
+  return { supabaseUrl, supabaseAnonKey };
+};
+
+// Variable para almacenar la instancia de Supabase (patrón singleton)
+let supabaseInstance: SupabaseClientType | null = null;
+
+/**
+ * Creates a Supabase client instance or returns a mock if env vars are missing
+ * Safe for SSR and build-time usage
+ */
+const createSupabaseClient = (): SupabaseClientType => {
+  const { supabaseUrl, supabaseAnonKey } = getSupabaseCredentials();
+
   if (supabaseUrl && supabaseAnonKey) {
-    // Create a real Supabase client when we have credentials
+    // Only create a real client if both URL and key are provided
     return createClient(supabaseUrl, supabaseAnonKey);
   } else {
-    // Create a mock client for development
+    console.warn('Supabase URL or Anonymous Key is missing. Using mock client for development.');
+    
+    // Create a mock client that's compatible with the Supabase interface
     const mockClient: MockSupabaseClient = {
       auth: {
         signUp: async ({ email, password }: { email: string; password: string }) => {
@@ -123,12 +132,13 @@ const createSupabaseClient = (): SupabaseClientType => {
       }
     };
     
-    console.warn('Supabase URL or Anonymous Key is missing. Using mock client for development.');
     return mockClient;
   }
 };
 
-// Getter function to ensure we only create the client once
+/**
+ * Get Supabase client instance (creates one if it doesn't exist)
+ */
 export function getSupabase(): SupabaseClientType {
   if (!supabaseInstance) {
     supabaseInstance = createSupabaseClient();
@@ -136,7 +146,5 @@ export function getSupabase(): SupabaseClientType {
   return supabaseInstance;
 }
 
-// Create and export the supabase client
-// Inicializamos supabase una sola vez para todo el proyecto
-const supabase = getSupabase();
-export { supabase }; 
+// Export the Supabase client instance
+export const supabase = getSupabase(); 
