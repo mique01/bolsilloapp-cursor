@@ -1,30 +1,45 @@
-import { createClient } from '@supabase/supabase-js';
-import { SupabaseClientType, MockSupabaseClient } from './types/supabase';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Función para obtener las credenciales de Supabase de manera segura
-const getSupabaseCredentials = () => {
-  const supabaseUrl = process?.env?.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabaseAnonKey = process?.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-  return { supabaseUrl, supabaseAnonKey };
+// Define the type for our Supabase client
+type SupabaseClientType = SupabaseClient;
+
+// Define a mock client type for development
+type MockSupabaseClient = {
+  auth: {
+    signUp: (params: { email: string; password: string }) => Promise<any>;
+    signIn: (params: { email: string; password: string }) => Promise<any>;
+    signInWithPassword: (params: { email: string; password: string }) => Promise<any>;
+    signOut: () => Promise<any>;
+    onAuthStateChange: (callback: (event: string, session: any) => void) => any;
+    getSession: () => Promise<any>;
+    getUser: () => Promise<any>;
+    resetPasswordForEmail: (email: string) => Promise<any>;
+    updateUser: (params: { password: string }) => Promise<any>;
+  };
+  from: (table: string) => any;
+  storage: {
+    from: (bucket: string) => {
+      upload: (path: string, file: any) => Promise<any>;
+      getPublicUrl: (path: string) => { data: { publicUrl: string } };
+      download: (path: string) => Promise<any>;
+      list: (path?: string, options?: any) => Promise<any>;
+      remove: (paths: string | string[]) => Promise<any>;
+    };
+  };
 };
 
-// Variable para almacenar la instancia de Supabase (patrón singleton)
+// Create a lazy-loaded variable that only gets initialized when needed
 let supabaseInstance: SupabaseClientType | null = null;
 
-/**
- * Creates a Supabase client instance or returns a mock if env vars are missing
- * Safe for SSR and build-time usage
- */
 const createSupabaseClient = (): SupabaseClientType => {
-  const { supabaseUrl, supabaseAnonKey } = getSupabaseCredentials();
+  const supabaseUrl = process?.env?.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process?.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (supabaseUrl && supabaseAnonKey) {
-    // Only create a real client if both URL and key are provided
+    // Create a real Supabase client when we have credentials
     return createClient(supabaseUrl, supabaseAnonKey);
   } else {
-    console.warn('Supabase URL or Anonymous Key is missing. Using mock client for development.');
-    
-    // Create a mock client that's compatible with the Supabase interface
+    // Create a mock client for development
     const mockClient: MockSupabaseClient = {
       auth: {
         signUp: async ({ email, password }: { email: string; password: string }) => {
@@ -37,7 +52,7 @@ const createSupabaseClient = (): SupabaseClientType => {
         },
         signInWithPassword: async ({ email, password }: { email: string; password: string }) => {
           console.warn('Using mock Supabase client - signInWithPassword');
-          return { data: null, error: new Error('Mock client - signInWithPassword not implemented') };
+          return { data: null, error: new Error('Mock client - signInWithPassword not implemented') };        
         },
         signOut: async () => {
           console.warn('Using mock Supabase client - signOut');
@@ -57,7 +72,7 @@ const createSupabaseClient = (): SupabaseClientType => {
         },
         resetPasswordForEmail: async (email: string) => {
           console.warn('Using mock Supabase client - resetPasswordForEmail');
-          return { data: null, error: new Error('Mock client - resetPasswordForEmail not implemented') };
+          return { data: null, error: new Error('Mock client - resetPasswordForEmail not implemented') };     
         },
         updateUser: async ({ password }: { password: string }) => {
           console.warn('Using mock Supabase client - updateUser');
@@ -131,20 +146,19 @@ const createSupabaseClient = (): SupabaseClientType => {
         })
       }
     };
-    
-    return mockClient;
+
+    console.warn('Supabase URL or Anonymous Key is missing. Using mock client for development.');
+    return mockClient as unknown as SupabaseClientType;
   }
 };
 
-/**
- * Get Supabase client instance (creates one if it doesn't exist)
- */
-export function getSupabase(): SupabaseClientType {
+// Getter function to ensure we only create the client once
+const getSupabase = (): SupabaseClientType => {
   if (!supabaseInstance) {
     supabaseInstance = createSupabaseClient();
   }
   return supabaseInstance;
-}
+};
 
-// Export the Supabase client instance
+// Export the client for module consumers
 export const supabase = getSupabase(); 
