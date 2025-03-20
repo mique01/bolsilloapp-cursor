@@ -186,6 +186,44 @@ export default function TransactionForm() {
     router.push('/transacciones');
   };
 
+  // Función para editar una categoría
+  const handleEditCategory = (category: string) => {
+    setEditingCategory(category);
+    setNewCategory(category);
+  };
+
+  // Función para eliminar una categoría
+  const handleDeleteCategory = (category: string) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar esta categoría?')) {
+      const updatedCategories = categories.filter(cat => cat !== category);
+      setCategories(updatedCategories);
+      localStorage.setItem('categories', JSON.stringify(updatedCategories));
+    }
+  };
+
+  // Función para guardar la edición de una categoría
+  const handleSaveCategoryEdit = () => {
+    if (editingCategory && newCategory.trim()) {
+      const updatedCategories = categories.map(cat => 
+        cat === editingCategory ? newCategory.trim() : cat
+      );
+      setCategories(updatedCategories);
+      localStorage.setItem('categories', JSON.stringify(updatedCategories));
+      setEditingCategory(null);
+      setNewCategory('');
+    }
+  };
+
+  // Función para agregar una nueva categoría
+  const handleAddCategory = () => {
+    if (newCategory.trim() && !categories.includes(newCategory.trim())) {
+      const updatedCategories = [...categories, newCategory.trim()];
+      setCategories(updatedCategories);
+      localStorage.setItem('categories', JSON.stringify(updatedCategories));
+      setNewCategory('');
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="mb-6 flex items-center justify-between">
