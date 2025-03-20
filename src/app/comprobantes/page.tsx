@@ -12,7 +12,12 @@ type Folder = {
 
 type Comprobante = {
   id: string;
+  user_id: string;
   description: string;
+  file_name: string;
+  file_type: string;
+  file_url: string;
+  folder_id: string;
   fileName: string;
   fileType: string;
   folderId: string;
@@ -80,7 +85,7 @@ export default function Comprobantes() {
       setComprobantes(parsed);
       setFilteredComprobantes(parsed);
     }
-  }, []);
+  }, [filterComprobantes]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);

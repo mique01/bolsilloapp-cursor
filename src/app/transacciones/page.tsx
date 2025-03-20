@@ -18,7 +18,7 @@ type Transaction = {
   person?: string;
   receipt?: string;
   owner?: string;
-  attachmentId?: string;
+  attachment_id?: string;
 };
 
 type Receipt = {
@@ -28,6 +28,17 @@ type Receipt = {
   folder: string;
   file: string; // Base64 o URL
   transactionId?: string;
+};
+
+type Comprobante = {
+  id: string;
+  user_id: string;
+  description: string;
+  file_name: string;
+  file_type: string;
+  file_url: string;
+  folder_id: string;
+  created_at?: string;
 };
 
 export default function TransactionsPage() {
@@ -76,7 +87,7 @@ export default function TransactionsPage() {
             type: t.type,
             paymentMethod: t.payment_method,
             person: t.person,
-            attachmentId: t.attachment_id
+            attachment_id: t.attachment_id
           }));
           
           setTransactions(formattedTransactions);
@@ -193,14 +204,24 @@ export default function TransactionsPage() {
       setTransactions(prevTransactions => prevTransactions.filter(t => t.id !== id));
       
       // If there's a linked comprobante, update it
-      if (transaction?.attachmentId) {
-        const comprobanteToUpdate = comprobantes.find(c => c.id === transaction.attachmentId);
+      if (transaction?.attachment_id) {
+        const comprobanteToUpdate = comprobantes.find(c => c.id === transaction.attachment_id);
         
         if (comprobanteToUpdate) {
+          // Update the transaction in Supabase
+          await supabaseDB.updateTransaction({
+            id: transaction.id,
+            attachment_id: undefined
+          });
+
           // Update the comprobante in Supabase to remove the transaction link
           await supabaseDB.updateComprobante({
             id: comprobanteToUpdate.id,
-            transaction_id: null
+            description: comprobanteToUpdate.description,
+            file_name: comprobanteToUpdate.file_name,
+            file_type: comprobanteToUpdate.file_type,
+            file_url: comprobanteToUpdate.file_url,
+            folder_id: comprobanteToUpdate.folder_id
           });
         }
       }
@@ -223,7 +244,7 @@ export default function TransactionsPage() {
       // Update the transaction to link the comprobante
       const { error: transactionError } = await supabaseDB.updateTransaction({
         id: transactionId,
-        attachmentId: comprobanteId
+        attachment_id: comprobanteId
       });
       
       if (transactionError) {
@@ -233,7 +254,11 @@ export default function TransactionsPage() {
       // Update the comprobante to link the transaction
       const { error: comprobanteError } = await supabaseDB.updateComprobante({
         id: comprobanteId,
-        transactionId
+        description: getComprobanteById(comprobanteId)?.description || '',
+        file_name: getComprobanteById(comprobanteId)?.file_name || '',
+        file_type: getComprobanteById(comprobanteId)?.file_type || '',
+        file_url: getComprobanteById(comprobanteId)?.file_url || '',
+        folder_id: getComprobanteById(comprobanteId)?.folder_id || ''
       });
       
       if (comprobanteError) {
@@ -244,7 +269,7 @@ export default function TransactionsPage() {
       setTransactions(prevTransactions => 
         prevTransactions.map(t => 
           t.id === transactionId 
-            ? { ...t, attachmentId: comprobanteId } 
+            ? { ...t, attachment_id: comprobanteId } 
             : t
         )
       );
@@ -252,7 +277,7 @@ export default function TransactionsPage() {
       setComprobantes(prevComprobantes => 
         prevComprobantes.map(c => 
           c.id === comprobanteId 
-            ? { ...c, transactionId } 
+            ? { ...c, attachment_id: transactionId }
             : c
         )
       );
@@ -305,14 +330,14 @@ export default function TransactionsPage() {
     }).format(amount);
   };
 
-  // Get unlinked comprobantes or specific one from URL
-  const unlinkedComprobantes = comprobantes.filter(c => {
-    // If there's a specific comprobante ID in the URL, show only that one
-    if (receiptIdParam) {
-      return c.id === receiptIdParam;
+  // Filter comprobantes based on selected transaction
+  const filteredComprobantes = comprobantes.filter(c => {
+    if (selectedTransaction) {
+      // If a transaction is selected, show only its linked comprobante
+      return c.id === selectedTransaction;
     }
     // Otherwise, show all unlinked comprobantes
-    return !c.transactionId;
+    return !c.attachment_id;
   });
 
   // Show loading state
@@ -449,9 +474,9 @@ export default function TransactionsPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      {transaction.attachmentId && getComprobanteById(transaction.attachmentId) && (
+                      {transaction.attachment_id && getComprobanteById(transaction.attachment_id) && (
                         <button
-                          onClick={() => viewComprobante(transaction.attachmentId)}
+                          onClick={() => viewComprobante(transaction.attachment_id)}
                           className="p-1.5 bg-purple-600/20 text-purple-400 rounded-lg hover:bg-purple-600/30 transition-colors"
                           title="Ver comprobante"
                         >
@@ -519,14 +544,14 @@ export default function TransactionsPage() {
                   </div>
                   
                   {/* Comprobante adjunto en vista móvil */}
-                  {transaction.attachmentId && getComprobanteById(transaction.attachmentId) && (
+                  {transaction.attachment_id && getComprobanteById(transaction.attachment_id) && (
                     <button
-                      onClick={() => viewComprobante(transaction.attachmentId)}
+                      onClick={() => viewComprobante(transaction.attachment_id)}
                       className="mt-2 flex items-center text-sm text-purple-400 hover:text-purple-300 transition-colors"
                     >
                       <Paperclip size={14} className="mr-1" />
                       <span className="truncate">
-                        {getComprobanteById(transaction.attachmentId)?.fileName || 'Comprobante adjunto'}
+                        {getComprobanteById(transaction.attachment_id)?.fileName || 'Comprobante adjunto'}
                       </span>
                     </button>
                   )}
@@ -628,7 +653,7 @@ export default function TransactionsPage() {
                   </div>
                 )}
               </>
-            ) : unlinkedComprobantes.length === 0 ? (
+            ) : filteredComprobantes.length === 0 ? (
               <div className="text-center py-8 text-gray-400">
                 <p>No hay comprobantes disponibles para vincular.</p>
                 <Link
@@ -641,7 +666,7 @@ export default function TransactionsPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {unlinkedComprobantes.map(comprobante => (
+                {filteredComprobantes.map(comprobante => (
                   <div key={comprobante.id} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
                     <div className="flex items-center gap-3">
                       <FileText size={20} className="text-blue-400" />
