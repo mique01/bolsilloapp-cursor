@@ -93,9 +93,10 @@ export default function TransactionsList() {
   
   // Efecto para extraer categorías, métodos de pago y personas únicas
   useEffect(() => {
-    const uniqueCategories = [...new Set(transactions.map(t => t.category))];
-    const uniquePaymentMethods = [...new Set(transactions.map(t => t.paymentMethod))];
-    const uniquePeople = [...new Set(transactions.filter(t => t.person).map(t => t.person as string))];
+    // Usamos Array.from en lugar de spread syntax para compatibilidad
+    const uniqueCategories = Array.from(new Set(transactions.map(t => t.category)));
+    const uniquePaymentMethods = Array.from(new Set(transactions.map(t => t.paymentMethod)));
+    const uniquePeople = Array.from(new Set(transactions.filter(t => t.person).map(t => t.person as string)));
     
     setCategories(uniqueCategories);
     setPaymentMethods(uniquePaymentMethods);
