@@ -18,13 +18,12 @@ type Comprobante = {
   file_type: string;
   file_url: string;
   folder_id: string;
-  fileName: string;
-  fileType: string;
-  folderId: string;
-  uploadDate: string;
+  created_at?: string;
 };
 
 export default function Comprobantes() {
+  // Mock user for now
+  const [user] = useState({ id: 'user123' });
   const [folders, setFolders] = useState<Folder[]>([]);
   const [comprobantes, setComprobantes] = useState<Comprobante[]>([]);
   const [filteredComprobantes, setFilteredComprobantes] = useState<Comprobante[]>([]);
@@ -43,14 +42,14 @@ export default function Comprobantes() {
     
     // Filtrar por carpeta actual si está seleccionada
     if (currentFolder) {
-      filtered = filtered.filter(comp => comp.folderId === currentFolder);
+      filtered = filtered.filter(comp => comp.folder_id === currentFolder);
     }
     
     // Aplicar filtro de búsqueda
     if (searchTerm) {
       filtered = filtered.filter(comp => 
         comp.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        comp.fileName.toLowerCase().includes(searchTerm.toLowerCase())
+        comp.file_name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     
@@ -108,11 +107,13 @@ export default function Comprobantes() {
     setTimeout(() => {
       const newComprobante: Comprobante = {
         id: Date.now().toString(),
+        user_id: user?.id || '',
         description,
-        fileName: selectedFile?.name || 'Sin archivo',
-        fileType: selectedFile?.type || '',
-        folderId: currentFolder || folders[0]?.id || 'default',
-        uploadDate: new Date().toISOString()
+        file_name: selectedFile?.name || 'Sin archivo',
+        file_type: selectedFile?.type || '',
+        file_url: URL.createObjectURL(selectedFile),
+        folder_id: currentFolder || folders[0]?.id || 'default',
+        created_at: new Date().toISOString()
       };
       
       const updatedComprobantes = [...comprobantes, newComprobante];
@@ -190,7 +191,7 @@ export default function Comprobantes() {
     }
     
     // Obtener comprobantes en esta carpeta
-    const comprobanteInFolder = comprobantes.filter(comp => comp.folderId === folderId);
+    const comprobanteInFolder = comprobantes.filter(comp => comp.folder_id === folderId);
     
     if (comprobanteInFolder.length > 0) {
       const confirmDelete = window.confirm(
@@ -202,8 +203,8 @@ export default function Comprobantes() {
         const defaultFolderId = folders.find(f => f.id !== folderId)?.id || '';
         
         const updatedComprobantes = comprobantes.map(comp => 
-          comp.folderId === folderId
-            ? { ...comp, folderId: defaultFolderId }
+          comp.folder_id === folderId
+            ? { ...comp, folder_id: defaultFolderId }
             : comp
         );
         
@@ -498,14 +499,14 @@ export default function Comprobantes() {
                         </div>
                         <div>
                           <h3 className="font-medium text-white">{comprobante.description}</h3>
-                          <p className="text-xs text-gray-400 mt-1">{new Date(comprobante.uploadDate).toLocaleDateString()}</p>
-                          <p className="text-sm text-gray-300 mt-2 truncate" title={comprobante.fileName}>
-                            {comprobante.fileName}
+                          <p className="text-xs text-gray-400 mt-1">{new Date(comprobante.created_at || '').toLocaleDateString()}</p>
+                          <p className="text-sm text-gray-300 mt-2 truncate" title={comprobante.file_name}>
+                            {comprobante.file_name}
                           </p>
                           <div className="flex items-center mt-2 text-xs text-gray-400">
                             <Folder size={12} className="mr-1" />
                             <span>
-                              {folders.find(f => f.id === comprobante.folderId)?.name || 'General'}
+                              {folders.find(f => f.id === comprobante.folder_id)?.name || 'General'}
                             </span>
                           </div>
                         </div>
