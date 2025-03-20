@@ -172,12 +172,32 @@ export default function TransactionsList() {
     // Aplicar ordenamiento
     if (sortConfig.key) {
       filtered.sort((a, b) => {
-        if (a[sortConfig.key as keyof Transaction] < b[sortConfig.key as keyof Transaction]) {
-          return sortConfig.direction === 'ascending' ? -1 : 1;
+        const key = sortConfig.key as keyof Transaction;
+        const aValue = a[key];
+        const bValue = b[key];
+        
+        // Handle different types of values
+        if (typeof aValue === 'string') {
+          return sortConfig.direction === 'ascending' 
+            ? aValue.localeCompare(bValue as string)
+            : (bValue as string).localeCompare(aValue);
         }
-        if (a[sortConfig.key as keyof Transaction] > b[sortConfig.key as keyof Transaction]) {
-          return sortConfig.direction === 'ascending' ? 1 : -1;
+        
+        if (typeof aValue === 'number') {
+          return sortConfig.direction === 'ascending'
+            ? (aValue as number) - (bValue as number)
+            : (bValue as number) - (aValue as number);
         }
+        
+        // For dates
+        if (key === 'date' && typeof aValue === 'string' && typeof bValue === 'string') {
+          const aDate = new Date(aValue);
+          const bDate = new Date(bValue);
+          return sortConfig.direction === 'ascending'
+            ? aDate.getTime() - bDate.getTime()
+            : bDate.getTime() - aDate.getTime();
+        }
+        
         return 0;
       });
     }
@@ -507,7 +527,7 @@ export default function TransactionsList() {
                     <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-200">
                       <div className="flex items-center">
                         {transaction.description || <span className="text-gray-400 italic">Sin descripción</span>}
-                        {transaction.attachmentId && (
+                        {transaction.attachment_id && (
                           <Paperclip size={16} className="ml-2 text-gray-400" />
                         )}
                       </div>
