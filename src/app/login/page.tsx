@@ -33,19 +33,16 @@ export default function LoginPage() {
           setLoading(false);
           return;
         }
-        
         // Register the user
-        const { user, error } = await signUp(email, password);
-        
+        const error: any = await signUp(email, password);
         if (error) {
           throw new Error(error.message);
         }
-        
         setSuccess('Cuenta creada con éxito. Por favor, verifica tu correo electrónico para activar tu cuenta.');
         setIsRegistering(false);
       } else {
         // Login the user
-        const { user, error } = await signIn(email, password);
+        const error: any = await signIn(email, password);
         
         if (error) {
           throw new Error(error.message);
