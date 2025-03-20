@@ -61,11 +61,11 @@ export default function PresupuestosPage() {
       setTransactions(parsedTransactions);
       
       // Obtener categorías únicas de gastos
-      const uniqueCategories = [...new Set(
+      const uniqueCategories = Array.from(new Set<string>(
         parsedTransactions
           .filter((t: Transaction) => t.type === 'expense')
           .map((t: Transaction) => t.category)
-      )];
+      ));
       setCategories(uniqueCategories);
     }
   }, []);
@@ -80,20 +80,6 @@ export default function PresupuestosPage() {
       localStorage.setItem('budget_categories', JSON.stringify(budgetCategories));
     }
   }, [budgets, budgetCategories]);
-
-  // Filtrar presupuestos
-  const filteredBudgets = budgets.filter(budget => {
-    if (filter === 'all') return true;
-    if (filter === 'active') {
-      const endDate = new Date(budget.endDate);
-      return endDate >= new Date();
-    }
-    if (filter === 'completed') {
-      const endDate = new Date(budget.endDate);
-      return endDate < new Date();
-    }
-    return true;
-  });
 
   // Calcular gastos por categoría
   const getSpentByCategory = (category: string) => {
@@ -286,16 +272,6 @@ const BudgetCard = ({ budget, onEdit, onDelete }: {
     if (percentage >= 90) return 'bg-red-500';
     if (percentage >= 70) return 'bg-yellow-500';
     return 'bg-green-500';
-  };
-
-  const getPeriodText = () => {
-    switch (period) {
-      case 'weekly': return 'Semanal';
-      case 'monthly': return 'Mensual';
-      case 'quarterly': return 'Trimestral';
-      case 'yearly': return 'Anual';
-      default: return 'Personalizado';
-    }
   };
 
   return (
