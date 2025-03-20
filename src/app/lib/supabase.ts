@@ -1,12 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
+import { SupabaseClientType, MockSupabaseClient } from '@/lib/types/supabase';
 
 // For client-side usage
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process?.env?.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process?.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 // Create a mock client if environment variables are missing
 const isBrowser = typeof window !== 'undefined';
-let supabase;
+let supabase: SupabaseClientType;
 
 if (supabaseUrl && supabaseAnonKey) {
   // Create a real Supabase client when we have credentials
@@ -15,27 +16,43 @@ if (supabaseUrl && supabaseAnonKey) {
   // Create a mock client that uses localStorage when credentials are missing
   // This prevents build errors while still allowing the app to function in development
   console.warn('Supabase URL or Anonymous Key is missing. Using mock client with localStorage fallback.');
-  supabase = {
+  
+  // Cast to any first to avoid type errors during object creation
+  const mockClient: MockSupabaseClient = {
     auth: {
-      signUp: async () => ({ data: null, error: new Error('Supabase not configured') }),
-      signIn: async () => ({ data: null, error: new Error('Supabase not configured') }),
+      signUp: async (options: { email: string; password: string }) => 
+        ({ data: null, error: new Error('Supabase not configured') }),
+      signIn: async (options: { email: string; password: string }) => 
+        ({ data: null, error: new Error('Supabase not configured') }),
+      signInWithPassword: async (options: { email: string; password: string }) => 
+        ({ data: null, error: new Error('Supabase not configured') }),
       signOut: async () => ({ error: null }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      onAuthStateChange: (callback) => ({ data: { subscription: { unsubscribe: () => {} } } }),
       getSession: async () => ({ data: { session: null }, error: null }),
+      getUser: async () => ({ data: { user: null }, error: null }),
+      resetPasswordForEmail: async (email: string) => 
+        ({ data: null, error: new Error('Supabase not configured') }),
+      updateUser: async (options: { password: string }) => 
+        ({ data: null, error: new Error('Supabase not configured') })
     },
-    from: () => ({
+    from: (table: string) => ({
       select: () => ({ eq: () => ({ data: [], error: null }) }),
-      insert: () => ({ data: null, error: null }),
+      insert: () => ({ data: null, error: null }), 
       update: () => ({ eq: () => ({ data: null, error: null }) }),
       delete: () => ({ eq: () => ({ data: null, error: null }) }),
     }),
     storage: {
-      from: () => ({
-        upload: async () => ({ data: null, error: null }),
-        getPublicUrl: () => ({ data: { publicUrl: '' } }),
+      from: (bucket: string) => ({
+        upload: async (path: string, file: any) => ({ data: null, error: null }),
+        getPublicUrl: (path: string) => ({ data: { publicUrl: '' } }),
+        download: async (path: string) => ({ data: null, error: null }),
+        list: async (path?: string, options?: any) => ({ data: null, error: null }),
+        remove: async (paths: string | string[]) => ({ data: null, error: null })
       }),
-    },
+    }
   };
+  
+  supabase = mockClient;
 }
 
 // Function to get URL for Supabase Storage

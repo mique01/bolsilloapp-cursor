@@ -1,133 +1,102 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
-import { supabase } from '@/app/lib/supabase';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 
-type SupabaseAuthContextType = {
-  user: User | null;
-  session: Session | null;
-  loading: boolean;
-  error: Error | null;
-  signUp: (email: string, password: string) => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
-  resetPassword: (email: string) => Promise<void>;
+type User = {
+  id: string;
+  email: string | undefined;
+  created_at: string;
 };
 
-const SupabaseAuthContext = createContext<SupabaseAuthContextType | undefined>(undefined);
+type AuthContextType = {
+  user: User | null;
+  loading: boolean;
+  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signOut: () => Promise<{ error: Error | null }>;
+  resetPassword: (email: string) => Promise<{ error: Error | null }>;
+  updatePassword: (password: string) => Promise<{ error: Error | null }>;
+};
 
-export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      try {
-        setLoading(true);
-        const { data } = await supabase.auth.getSession();
-        setSession(data.session);
-        setUser(data.session?.user || null);
-      } catch (error) {
-        setError(error instanceof Error ? error : new Error(String(error)));
-      } finally {
-        setLoading(false);
+    // Check active sessions and sets the user
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email,
+          created_at: session.user.created_at
+        });
       }
-    };
+      setLoading(false);
+    });
 
-    getInitialSession();
-
-    // Set up auth subscription
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event: AuthChangeEvent, session: Session | null) => {
-        setSession(session);
-        setUser(session?.user || null);
-        setLoading(false);
+    // Listen for changes on auth state (logged in, signed out, etc.)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email,
+          created_at: session.user.created_at
+        });
+      } else {
+        setUser(null);
       }
-    );
+      setLoading(false);
+    });
 
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const signUp = async (email: string, password: string) => {
-    try {
-      setLoading(true);
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
-    } catch (error) {
-      setError(error instanceof Error ? error : new Error(String(error)));
-      throw error;
-    } finally {
-      setLoading(false);
-    }
+    const { error } = await supabase.auth.signUp({ email, password });
+    return { error };
   };
 
   const signIn = async (email: string, password: string) => {
-    try {
-      setLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-    } catch (error) {
-      setError(error instanceof Error ? error : new Error(String(error)));
-      throw error;
-    } finally {
-      setLoading(false);
-    }
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error };
   };
 
   const signOut = async () => {
-    try {
-      setLoading(true);
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-    } catch (error) {
-      setError(error instanceof Error ? error : new Error(String(error)));
-      throw error;
-    } finally {
-      setLoading(false);
-    }
+    const { error } = await supabase.auth.signOut();
+    return { error };
   };
 
   const resetPassword = async (email: string) => {
-    try {
-      setLoading(true);
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
-      if (error) throw error;
-    } catch (error) {
-      setError(error instanceof Error ? error : new Error(String(error)));
-      throw error;
-    } finally {
-      setLoading(false);
-    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    return { error };
+  };
+
+  const updatePassword = async (password: string) => {
+    const { error } = await supabase.auth.updateUser({ password });
+    return { error };
   };
 
   const value = {
     user,
-    session,
     loading,
-    error,
     signUp,
     signIn,
     signOut,
     resetPassword,
+    updatePassword
   };
 
-  return (
-    <SupabaseAuthContext.Provider value={value}>
-      {children}
-    </SupabaseAuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useSupabaseAuth() {
-  const context = useContext(SupabaseAuthContext);
+export function useAuth() {
+  const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useSupabaseAuth must be used within a SupabaseAuthProvider');
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 } 

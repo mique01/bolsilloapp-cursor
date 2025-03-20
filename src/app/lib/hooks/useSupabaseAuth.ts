@@ -1,5 +1,5 @@
-import { useSupabaseAuth as useSupabaseAuthContext } from '../contexts/SupabaseAuthContext';
+import { useAuth } from '../contexts/SupabaseAuthContext';
 
 export default function useSupabaseAuth() {
-  return useSupabaseAuthContext();
+  return useAuth();
 } 

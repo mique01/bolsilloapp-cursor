@@ -1,4 +1,12 @@
-import { supabase, getStorageUrl } from '@/app/lib/supabase';
+import { supabase } from '@/lib/supabase';
+
+// Since getStorageUrl is not exported from the supabase.ts file, 
+// let's define a function to get the public URL
+const getStorageUrl = (bucket: string, path: string): string => {
+  // Safely access env var with optional chaining
+  const supabaseUrl = process?.env?.NEXT_PUBLIC_SUPABASE_URL || '';
+  return `${supabaseUrl}/storage/v1/object/public/${bucket}/${path}`;
+};
 
 // Upload file to Supabase Storage
 export async function uploadFile(
@@ -43,7 +51,7 @@ export async function listFiles(
     .list(path, options);
   
   return { 
-    data: data?.map(file => ({
+    data: data?.map((file: { name: string }) => ({
       ...file,
       publicUrl: file.name ? getStorageUrl(bucket, `${path ? path + '/' : ''}${file.name}`) : null
     })), 
