@@ -17,6 +17,31 @@ import {
 } from "lucide-react";
 import { SupabaseAuthProvider, useSupabaseAuth } from "@/lib/contexts/SupabaseAuthContext";
 
+// Función auxiliar para manejar correctamente las rutas teniendo en cuenta el basePath
+const getFullPath = (path: string) => {
+  // En el cliente, window.basePath estará definido por el script inyectado
+  const basePath = typeof window !== 'undefined' ? (window as any).basePath || '' : 
+    process.env.NEXT_PUBLIC_BASE_PATH || '';
+  // Asegurarse de no duplicar barras al unir las partes
+  if (path.startsWith('/') && basePath.endsWith('/')) {
+    return `${basePath}${path.substring(1)}`;
+  }
+  if (!path.startsWith('/') && !basePath.endsWith('/') && basePath !== '') {
+    return `${basePath}/${path}`;
+  }
+  return `${basePath}${path}`;
+};
+
+// Componente Link personalizado que maneja correctamente el basePath
+function CustomLink({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) {
+  const fullHref = getFullPath(href);
+  return (
+    <Link href={fullHref} className={className}>
+      {children}
+    </Link>
+  );
+}
+
 function Layout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -39,11 +64,11 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   const handleLogout = async () => {
     await signOut();
-    router.push('/login');
+    router.push(getFullPath('/login'));
   };
 
   // Skip rendering sidebar and header for login/register pages
-  if (pathname === '/login' || pathname === '/reset-password') {
+  if (pathname === getFullPath('/login') || pathname === getFullPath('/reset-password')) {
     return <>{children}</>;
   }
 
@@ -57,12 +82,12 @@ function Layout({ children }: { children: React.ReactNode }) {
       >
         {/* Logo and App Name */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-800 bg-gradient-to-r from-purple-900/40 to-indigo-900/40">
-          <Link href="/" className="flex items-center">
+          <CustomLink href="/" className="flex items-center">
             <div className="p-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-md shadow-lg">
               <PiggyBank size={20} className="text-white" />
             </div>
             <span className="ml-2 text-lg font-semibold text-white">Bolsillo App</span>
-          </Link>
+          </CustomLink>
           {isMobile && (
             <button
               onClick={() => setIsSidebarOpen(false)}
@@ -75,72 +100,72 @@ function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Nav Links */}
         <nav className="flex flex-col p-4 space-y-2">
-          <Link
+          <CustomLink
             href="/"
             className={`flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 ${
-              pathname === "/"
+              pathname === getFullPath("/")
                 ? "bg-gradient-to-r from-purple-600/30 to-indigo-600/20 text-white border border-purple-500/30"
                 : "text-gray-400 hover:bg-[#1e293b] hover:text-white"
             }`}
           >
             <Home size={20} className="mr-3" />
             <span className="text-sm font-medium">Inicio</span>
-          </Link>
-          <Link
+          </CustomLink>
+          <CustomLink
             href="/dashboard"
             className={`flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 ${
-              pathname === "/dashboard"
+              pathname === getFullPath("/dashboard")
                 ? "bg-gradient-to-r from-purple-600/30 to-indigo-600/20 text-white border border-purple-500/30"
                 : "text-gray-400 hover:bg-[#1e293b] hover:text-white"
             }`}
           >
             <BarChart3 size={20} className="mr-3" />
             <span className="text-sm font-medium">Dashboard</span>
-          </Link>
-          <Link
+          </CustomLink>
+          <CustomLink
             href="/transacciones"
             className={`flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 ${
-              pathname === "/transacciones" || pathname?.startsWith("/transacciones/")
+              pathname === getFullPath("/transacciones") || pathname?.startsWith(getFullPath("/transacciones/"))
                 ? "bg-gradient-to-r from-purple-600/30 to-indigo-600/20 text-white border border-purple-500/30"
                 : "text-gray-400 hover:bg-[#1e293b] hover:text-white"
             }`}
           >
             <Receipt size={20} className="mr-3" />
             <span className="text-sm font-medium">Transacciones</span>
-          </Link>
-          <Link
+          </CustomLink>
+          <CustomLink
             href="/comprobantes"
             className={`flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 ${
-              pathname === "/comprobantes"
+              pathname === getFullPath("/comprobantes")
                 ? "bg-gradient-to-r from-purple-600/30 to-indigo-600/20 text-white border border-purple-500/30"
                 : "text-gray-400 hover:bg-[#1e293b] hover:text-white"
             }`}
           >
             <DollarSign size={20} className="mr-3" />
             <span className="text-sm font-medium">Comprobantes</span>
-          </Link>
-          <Link
+          </CustomLink>
+          <CustomLink
             href="/presupuestos"
             className={`flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 ${
-              pathname === "/presupuestos"
+              pathname === getFullPath("/presupuestos")
                 ? "bg-gradient-to-r from-purple-600/30 to-indigo-600/20 text-white border border-purple-500/30"
                 : "text-gray-400 hover:bg-[#1e293b] hover:text-white"
             }`}
           >
             <PiggyBank size={20} className="mr-3" />
             <span className="text-sm font-medium">Presupuestos</span>
-          </Link>
-          <Link
+          </CustomLink>
+          <CustomLink
             href="/configuracion"
             className={`flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 ${
-              pathname === "/configuracion"
+              pathname === getFullPath("/configuracion")
                 ? "bg-gradient-to-r from-purple-600/30 to-indigo-600/20 text-white border border-purple-500/30"
                 : "text-gray-400 hover:bg-[#1e293b] hover:text-white"
             }`}
           >
             <Settings size={20} className="mr-3" />
             <span className="text-sm font-medium">Configuración</span>
-          </Link>
+          </CustomLink>
         </nav>
 
         {/* User Section */}
@@ -175,12 +200,12 @@ function Layout({ children }: { children: React.ReactNode }) {
       {isMobile && !isSidebarOpen && (
         <div className="fixed top-0 left-0 right-0 z-40 bg-[#111827] border-b border-gray-800 shadow-lg">
           <div className="flex items-center justify-between h-16 px-4">
-            <Link href="/" className="flex items-center">
+            <CustomLink href="/" className="flex items-center">
               <div className="p-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-md shadow-lg">
                 <PiggyBank size={20} className="text-white" />
               </div>
               <span className="ml-2 text-lg font-semibold text-white">Bolsillo App</span>
-            </Link>
+            </CustomLink>
             <button
               onClick={() => setIsSidebarOpen(true)}
               className="p-2 rounded-md text-gray-400 hover:text-white bg-gradient-to-r from-purple-600/20 to-indigo-600/10 border border-purple-500/20 focus:outline-none"

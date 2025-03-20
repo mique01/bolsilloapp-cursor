@@ -10,6 +10,22 @@ export const metadata: Metadata = {
   description: "Gestiona tus finanzas personales de manera inteligente",
 };
 
+// Agregar un script para establecer la ruta base correctamente en GitHub Pages
+const BasePathScript = () => {
+  return (
+    <script
+      dangerouslySetInnerHTML={{
+        __html: `
+          (function() {
+            window.basePath = '${process.env.NEXT_PUBLIC_BASE_PATH || ''}';
+            console.log('Base path set to:', window.basePath);
+          })();
+        `,
+      }}
+    />
+  );
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -17,7 +33,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" className="h-full">
-      <body className={`${inter.className} h-full text-gray-900 dark:text-gray-100`}>
+      <head>
+        <BasePathScript />
+      </head>
+      <body className={`${inter.className} h-full text-gray-900 dark:text-gray-100 dark-theme`}>
         <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
