@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { BarChart3, Receipt, PiggyBank, Settings, DollarSign, TrendingUp, TrendingDown } from "lucide-react";
 import Link from 'next/link';
 import { ArrowRight, Send, Loader2, Plus, ArrowDown, ArrowUp } from 'lucide-react';
+import { CustomLink } from '@/components/ClientLayout';
 
 const features = [
   {
@@ -573,23 +574,29 @@ export default function Home() {
                   <Plus className="text-purple-400" />
                 </div>
                 <div className="grid grid-cols-1 gap-4">
-                  <Link href="/transacciones/nueva?type=expense" 
-                    className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-red-500/20 to-red-400/10 text-red-300 rounded-lg hover:from-red-500/30 hover:to-red-400/20 transition-all border border-red-500/20">
+                  <CustomLink 
+                    href="/transacciones/nueva/?type=expense" 
+                    className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-red-500/20 to-red-400/10 text-red-300 rounded-lg hover:from-red-500/30 hover:to-red-400/20 transition-all border border-red-500/20"
+                  >
                     <ArrowDown size={20} />
                     <span className="font-medium">Nuevo Gasto</span>
                     <ArrowRight size={16} className="ml-auto" />
-                  </Link>
-                  <Link href="/transacciones/nueva?type=income" 
-                    className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-green-500/20 to-green-400/10 text-green-300 rounded-lg hover:from-green-500/30 hover:to-green-400/20 transition-all border border-green-500/20">
+                  </CustomLink>
+                  <CustomLink 
+                    href="/transacciones/nueva/?type=income" 
+                    className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-green-500/20 to-green-400/10 text-green-300 rounded-lg hover:from-green-500/30 hover:to-green-400/20 transition-all border border-green-500/20"
+                  >
                     <ArrowUp size={20} />
                     <span className="font-medium">Nuevo Ingreso</span>
                     <ArrowRight size={16} className="ml-auto" />
-                  </Link>
-                  <Link href="/dashboard" 
-                    className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-blue-500/20 to-blue-400/10 text-blue-300 rounded-lg hover:from-blue-500/30 hover:to-blue-400/20 transition-all border border-blue-500/20">
+                  </CustomLink>
+                  <CustomLink 
+                    href="/dashboard" 
+                    className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-blue-500/20 to-blue-400/10 text-blue-300 rounded-lg hover:from-blue-500/30 hover:to-blue-400/20 transition-all border border-blue-500/20"
+                  >
                     <span className="font-medium">Ver Dashboard</span>
                     <ArrowRight size={16} className="ml-auto" />
-                  </Link>
+                  </CustomLink>
                 </div>
               </div>
             </div>
@@ -597,30 +604,30 @@ export default function Home() {
             <div className="bg-[#1e293b] p-6 rounded-xl border border-gray-800 shadow-lg transform transition-all hover:shadow-xl hover:scale-[1.01]">
               <h2 className="text-xl font-semibold text-gray-100 mb-4">Enlaces rápidos</h2>
               <div className="grid grid-cols-1 gap-3">
-                <Link href="/transacciones" 
+                <CustomLink href="/transacciones" 
                   className="flex items-center justify-between p-3.5 bg-[#0f172a] rounded-lg hover:bg-[#151e33] transition-all border border-gray-800">
                   <div className="flex items-center gap-3">
                     <Receipt className="h-5 w-5 text-purple-400" />
                     <span className="text-gray-200 font-medium">Transacciones</span>
                   </div>
                   <ArrowRight size={16} className="text-gray-500" />
-                </Link>
-                <Link href="/comprobantes" 
+                </CustomLink>
+                <CustomLink href="/comprobantes" 
                   className="flex items-center justify-between p-3.5 bg-[#0f172a] rounded-lg hover:bg-[#151e33] transition-all border border-gray-800">
                   <div className="flex items-center gap-3">
                     <DollarSign className="h-5 w-5 text-purple-400" />
                     <span className="text-gray-200 font-medium">Comprobantes</span>
                   </div>
                   <ArrowRight size={16} className="text-gray-500" />
-                </Link>
-                <Link href="/presupuestos" 
+                </CustomLink>
+                <CustomLink href="/presupuestos" 
                   className="flex items-center justify-between p-3.5 bg-[#0f172a] rounded-lg hover:bg-[#151e33] transition-all border border-gray-800">
                   <div className="flex items-center gap-3">
                     <PiggyBank className="h-5 w-5 text-purple-400" />
                     <span className="text-gray-200 font-medium">Presupuestos</span>
                   </div>
                   <ArrowRight size={16} className="text-gray-500" />
-                </Link>
+                </CustomLink>
               </div>
             </div>
           </div>

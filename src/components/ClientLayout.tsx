@@ -22,18 +22,30 @@ const getFullPath = (path: string) => {
   // En el cliente, window.basePath estará definido por el script inyectado
   const basePath = typeof window !== 'undefined' ? (window as any).basePath || '' : 
     process.env.NEXT_PUBLIC_BASE_PATH || '';
-  // Asegurarse de no duplicar barras al unir las partes
-  if (path.startsWith('/') && basePath.endsWith('/')) {
-    return `${basePath}${path.substring(1)}`;
+  
+  if (!basePath) return path;
+  
+  // Verificar si ya tiene el basePath duplicado
+  const basePathDuplicate = `${basePath}${basePath}`;
+  if (path.startsWith(basePathDuplicate)) {
+    return path.replace(basePathDuplicate, basePath);
   }
-  if (!path.startsWith('/') && !basePath.endsWith('/') && basePath !== '') {
-    return `${basePath}/${path}`;
+  
+  // Verificar si ya tiene el basePath
+  if (path.startsWith(basePath)) {
+    return path;
   }
-  return `${basePath}${path}`;
+  
+  // Asegurarse de agregar correctamente el basePath
+  if (path.startsWith('/')) {
+    return `${basePath}${path}`;
+  }
+  
+  return `${basePath}/${path}`;
 };
 
 // Componente Link personalizado que maneja correctamente el basePath
-function CustomLink({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) {
+export function CustomLink({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) {
   const fullHref = getFullPath(href);
   return (
     <Link href={fullHref} className={className}>
@@ -68,7 +80,12 @@ function Layout({ children }: { children: React.ReactNode }) {
   };
 
   // Skip rendering sidebar and header for login/register pages
-  if (pathname === getFullPath('/login') || pathname === getFullPath('/reset-password')) {
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+  const loginPath = '/login';
+  const resetPath = '/reset-password';
+
+  if (pathname === loginPath || pathname === resetPath || 
+      (basePath && (pathname === `${basePath}${loginPath}` || pathname === `${basePath}${resetPath}`))) {
     return <>{children}</>;
   }
 

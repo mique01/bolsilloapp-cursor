@@ -18,7 +18,9 @@ const BasePathScript = () => {
         __html: `
           (function() {
             window.basePath = '${process.env.NEXT_PUBLIC_BASE_PATH || ''}';
+            window.isBasepathHandled = ${process.env.NODE_ENV === 'production'};
             console.log('Base path set to:', window.basePath);
+            console.log('Basepath handled by Next.js:', window.isBasepathHandled);
           })();
         `,
       }}
