@@ -2,7 +2,52 @@
 3:I[84454,["48","static/chunks/48-f86dad74d29303c0.js","480","static/chunks/480-1aa4334637fca5da.js","626","static/chunks/app/login/page-455fcc26e96d514b.js"],"default"]
 4:I[39275,[],""]
 5:I[61343,[],""]
-6:I[43936,["48","static/chunks/48-f86dad74d29303c0.js","480","static/chunks/480-1aa4334637fca5da.js","936","static/chunks/936-d23bce3737ed4e8a.js","185","static/chunks/app/layout-df081fd676ee9f50.js"],"default"]
-0:["YE8NVJTlKrwZInzPbtELv",[[["",{"children":["login",{"children":["__PAGE__",{}]}]},"$undefined","$undefined",true],["",{"children":["login",{"children":["__PAGE__",{},[["$L1",["$","$L2",null,{"props":{"params":{},"searchParams":{}},"Component":"$3"}]],null],null]},["$","$L4",null,{"parallelRouterKey":"children","segmentPath":["children","login","children"],"error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","notFoundStyles":"$undefined","styles":null}],null]},[["$","html",null,{"lang":"es","className":"h-full","children":[["$","head",null,{"children":["$","script",null,{"dangerouslySetInnerHTML":{"__html":"\n          (function() {\n            window.basePath = '/bolsilloapp-cursor';\n            window.isBasepathHandled = true;\n            console.log('Base path set to:', window.basePath);\n            console.log('Basepath handled by Next.js:', window.isBasepathHandled);\n          })();\n        "}}]}],["$","body",null,{"className":"__className_f4828b h-full text-gray-900 dark:text-gray-100 dark-theme","children":["$","$L6",null,{"children":["$","$L4",null,{"parallelRouterKey":"children","segmentPath":["children"],"error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":[["$","title",null,{"children":"404: This page could not be found."}],["$","div",null,{"style":{"fontFamily":"system-ui,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\"","height":"100vh","textAlign":"center","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},"children":["$","div",null,{"children":[["$","style",null,{"dangerouslySetInnerHTML":{"__html":"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}"}}],["$","h1",null,{"className":"next-error-h1","style":{"display":"inline-block","margin":"0 20px 0 0","padding":"0 23px 0 0","fontSize":24,"fontWeight":500,"verticalAlign":"top","lineHeight":"49px"},"children":"404"}],["$","div",null,{"style":{"display":"inline-block"},"children":["$","h2",null,{"style":{"fontSize":14,"fontWeight":400,"lineHeight":"49px","margin":0},"children":"This page could not be found."}]}]]}]}]],"notFoundStyles":[],"styles":null}]}]}]]}],null],null],[[["$","link","0",{"rel":"stylesheet","href":"/bolsilloapp-cursor/_next/static/css/578e8647e2eb6139.css","precedence":"next","crossOrigin":"$undefined"}]],[null,"$L7"]]]]]
-7:[["$","meta","0",{"name":"viewport","content":"width=device-width, initial-scale=1"}],["$","meta","1",{"charSet":"utf-8"}],["$","title","2",{"children":"Bolsillo App"}],["$","meta","3",{"name":"description","content":"Gestiona tus finanzas personales de manera inteligente"}],["$","link","4",{"rel":"icon","href":"/bolsilloapp-cursor/favicon.ico","type":"image/x-icon","sizes":"16x16"}],["$","meta","5",{"name":"next-size-adjust"}]]
+7:I[43936,["48","static/chunks/48-f86dad74d29303c0.js","480","static/chunks/480-1aa4334637fca5da.js","936","static/chunks/936-1bb3c4f59e7343d8.js","185","static/chunks/app/layout-df081fd676ee9f50.js"],"default"]
+6:T843,
+          (function() {
+            // Detectar entorno y configurar rutas
+            const isGitHubPages = window.location.hostname.includes('github.io');
+            const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const isLocalIP = /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname);
+            
+            // Configurar variables globales
+            window.appConfig = {
+              basePath: '',
+              isBasepathHandled: false,
+              isLocal: isLocalHost || isLocalIP,
+              isGitHubPages: isGitHubPages,
+              siteUrl: window.location.origin
+            };
+            
+            // Si estamos en GitHub Pages, usar el basePath
+            if (isGitHubPages) {
+              window.appConfig.basePath = '/bolsilloapp-cursor';
+              window.appConfig.isBasepathHandled = true;
+            } 
+            // Si estamos en localhost o IP local, NO usar basePath independientemente del entorno
+            else if (isLocalHost || isLocalIP) {
+              window.appConfig.basePath = '';
+              window.appConfig.isBasepathHandled = false;
+            }
+            // En producción pero no GitHub Pages (ej: Vercel)
+            else {
+              window.appConfig.basePath = '';
+              window.appConfig.isBasepathHandled = false;
+            }
+            
+            console.log('App config:', window.appConfig);
+            console.log('Current hostname:', window.location.hostname);
+            
+            // Redirigir si hay un prefijo incorrecto en la URL
+            if ((isLocalHost || isLocalIP) && window.location.pathname.startsWith('/bolsilloapp-cursor')) {
+              const newPath = window.location.pathname.replace('/bolsilloapp-cursor', '');
+              window.location.href = window.location.origin + (newPath || '/');
+              return;
+            }
+            
+            // Agregar clase al body para asegurar que los estilos se apliquen correctamente
+            document.documentElement.classList.add('dark-theme');
+          })();
+        0:["WOX0UGVdk_NHCPGeO8M-5",[[["",{"children":["login",{"children":["__PAGE__",{}]}]},"$undefined","$undefined",true],["",{"children":["login",{"children":["__PAGE__",{},[["$L1",["$","$L2",null,{"props":{"params":{},"searchParams":{}},"Component":"$3"}]],null],null]},["$","$L4",null,{"parallelRouterKey":"children","segmentPath":["children","login","children"],"error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","notFoundStyles":"$undefined","styles":null}],null]},[["$","html",null,{"lang":"es","className":"h-full","children":[["$","head",null,{"children":[["$","script",null,{"dangerouslySetInnerHTML":{"__html":"$6"}}],["$","link",null,{"rel":"stylesheet","href":"/bolsilloapp-cursor/tailwind.css"}],[["$","script",null,{"defer":true,"src":"/bolsilloapp-cursor/webpack.js"}],["$","script",null,{"defer":true,"src":"/bolsilloapp-cursor/fd9d1056.js"}],["$","script",null,{"defer":true,"src":"/bolsilloapp-cursor/23.js"}],["$","script",null,{"defer":true,"src":"/bolsilloapp-cursor/main-app.js"}]]]}],["$","body",null,{"className":"__className_f4828b h-full text-gray-900 dark:text-gray-100 dark-theme","children":["$","$L7",null,{"children":["$","$L4",null,{"parallelRouterKey":"children","segmentPath":["children"],"error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":[["$","title",null,{"children":"404: This page could not be found."}],["$","div",null,{"style":{"fontFamily":"system-ui,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\"","height":"100vh","textAlign":"center","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},"children":["$","div",null,{"children":[["$","style",null,{"dangerouslySetInnerHTML":{"__html":"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}"}}],["$","h1",null,{"className":"next-error-h1","style":{"display":"inline-block","margin":"0 20px 0 0","padding":"0 23px 0 0","fontSize":24,"fontWeight":500,"verticalAlign":"top","lineHeight":"49px"},"children":"404"}],["$","div",null,{"style":{"display":"inline-block"},"children":["$","h2",null,{"style":{"fontSize":14,"fontWeight":400,"lineHeight":"49px","margin":0},"children":"This page could not be found."}]}]]}]}]],"notFoundStyles":[],"styles":null}]}]}]]}],null],null],[[["$","link","0",{"rel":"stylesheet","href":"/bolsilloapp-cursor/_next/static/css/578e8647e2eb6139.css","precedence":"next","crossOrigin":"$undefined"}]],[null,"$L8"]]]]]
+8:[["$","meta","0",{"name":"viewport","content":"width=device-width, initial-scale=1"}],["$","meta","1",{"charSet":"utf-8"}],["$","title","2",{"children":"Bolsillo App"}],["$","meta","3",{"name":"description","content":"Gestiona tus finanzas personales de manera inteligente"}],["$","link","4",{"rel":"icon","href":"/bolsilloapp-cursor/favicon.ico","type":"image/x-icon","sizes":"16x16"}],["$","meta","5",{"name":"next-size-adjust"}]]
 1:null

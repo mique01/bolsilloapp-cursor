@@ -1,0 +1,1 @@
+self.__BUILD_MANIFEST={__rewrites:{afterFiles:[],beforeFiles:[],fallback:[]},"/bolsilloapp-cursor/_error":["static/chunks/pages/_error-6ae619510b1539d6.js"],sortedPages:["/bolsilloapp-cursor/_app","/bolsilloapp-cursor/_error"]},self.__BUILD_MANIFEST_CB&&self.__BUILD_MANIFEST_CB();
