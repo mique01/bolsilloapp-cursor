@@ -19,40 +19,46 @@ import { SupabaseAuthProvider, useSupabaseAuth } from "@/lib/contexts/SupabaseAu
 
 // Función auxiliar para manejar correctamente las rutas teniendo en cuenta el basePath
 const getFullPath = (path: string) => {
-  // En el cliente, window.basePath estará definido por el script inyectado
-  const basePath = typeof window !== 'undefined' ? (window as any).basePath || '' : 
-    process.env.NEXT_PUBLIC_BASE_PATH || '';
-  
-  if (!basePath) return path;
-  
-  // Verificar si ya tiene el basePath duplicado
-  const basePathDuplicate = `${basePath}${basePath}`;
-  if (path.startsWith(basePathDuplicate)) {
-    return path.replace(basePathDuplicate, basePath);
-  }
-  
-  // Verificar si ya tiene el basePath
-  if (path.startsWith(basePath)) {
+  // En el cliente, window.appConfig estará definido por el script inyectado
+  const config = typeof window !== 'undefined' ? (window as any).appConfig || { basePath: '', isBasepathHandled: false } :
+    { basePath: '', isBasepathHandled: false };
+
+  // Determinar si estamos en localhost o IP local
+  const isLocalEnv = typeof window !== 'undefined' && 
+    (window.location.hostname === 'localhost' || 
+     window.location.hostname === '127.0.0.1' || 
+     /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname));
+
+  // Si estamos en localhost o IP local, no usar basePath
+  if (isLocalEnv) {
     return path;
   }
-  
-  // Asegurarse de agregar correctamente el basePath
-  if (path.startsWith('/')) {
-    return `${basePath}${path}`;
+
+  // Si no hay basePath, retornar el path original
+  if (!config.basePath) {
+    return path;
   }
-  
-  return `${basePath}/${path}`;
+
+  // Verificar si ya tiene el basePath duplicado
+  const basePathDuplicate = `${config.basePath}${config.basePath}`;
+  if (path.startsWith(basePathDuplicate)) {
+    return path.replace(basePathDuplicate, config.basePath);
+  }
+
+  // Verificar si ya tiene el basePath
+  if (path.startsWith(config.basePath)) {
+    return path;
+  }
+
+  // Agregar el basePath al path
+  return `${config.basePath}${path}`;
 };
 
-// Componente Link personalizado que maneja correctamente el basePath
-export function CustomLink({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) {
-  const fullHref = getFullPath(href);
-  return (
-    <Link href={fullHref} className={className}>
-      {children}
-    </Link>
-  );
-}
+// Componente personalizado de Link para manejar correctamente las rutas
+export const CustomLink = ({ href, ...props }: React.ComponentProps<typeof Link>) => {
+  const fullHref = getFullPath(href.toString());
+  return <Link href={fullHref} {...props} />;
+};
 
 function Layout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
