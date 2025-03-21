@@ -64,45 +64,141 @@ export type Budget = {
   created_at?: string;
 };
 
+// Función de utilidad para verificar la disponibilidad de Supabase
+const getSupabaseClient = () => {
+  const client = supabase;
+  
+  if (!client) {
+    console.error("Supabase client no está disponible");
+    throw new Error("Supabase client no está disponible");
+  }
+  
+  return client;
+};
+
 // Transactions
 export async function getTransactions(userId: string): Promise<{ data: Transaction[] | null; error: PostgrestError | null }> {
-  const { data, error } = await supabase
-    .from('transactions')
-    .select('*')
-    .eq('user_id', userId)
-    .order('date', { ascending: false });
-  
-  return { data, error };
+  try {
+    const client = getSupabaseClient();
+    console.log("Obteniendo transacciones para el usuario:", userId);
+    
+    const { data, error } = await client
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: false });
+
+    if (error) throw error;
+    console.log(`Se han recuperado ${data?.length || 0} transacciones`);
+    
+    return { data, error };
+  } catch (error) {
+    console.error("Error al obtener transacciones:", error);
+    return { data: null, error: error as PostgrestError };
+  }
 }
 
 export async function addTransaction(transaction: Omit<Transaction, 'id' | 'created_at'>): Promise<{ data: Transaction | null; error: PostgrestError | null }> {
-  const { data, error } = await supabase
-    .from('transactions')
-    .insert(transaction)
-    .select()
-    .single();
-  
-  return { data, error };
+  try {
+    const client = getSupabaseClient();
+    console.log("Añadiendo nueva transacción:", transaction.description);
+    
+    const { data, error } = await client
+      .from('transactions')
+      .insert(transaction)
+      .select()
+      .single();
+
+    if (error) throw error;
+    console.log("Transacción añadida con éxito, ID:", data?.id);
+    
+    return { data, error };
+  } catch (error) {
+    console.error("Error al añadir transacción:", error);
+    return { data: null, error: error as PostgrestError };
+  }
 }
 
-export async function updateTransaction(transaction: Partial<Transaction> & { id: string }): Promise<{ data: Transaction | null; error: PostgrestError | null }> {
-  const { data, error } = await supabase
-    .from('transactions')
-    .update(transaction)
-    .eq('id', transaction.id)
-    .select()
-    .single();
-  
-  return { data, error };
+export async function updateTransaction(
+  transactionOrId: (Partial<Transaction> & { id: string }) | string,
+  transactionData?: any
+): Promise<{ data: Transaction | null; error: PostgrestError | null }> {
+  try {
+    const client = getSupabaseClient();
+    
+    let id: string;
+    let transactionToUpdate: any;
+    
+    // Determinar el formato de parámetros utilizado
+    if (typeof transactionOrId === 'string') {
+      // Formato: updateTransaction(id, transactionData)
+      id = transactionOrId;
+      transactionToUpdate = transactionData;
+      console.log(`Actualizando transacción ${id}...`, transactionToUpdate);
+    } else {
+      // Formato: updateTransaction(transaction)
+      id = transactionOrId.id;
+      transactionToUpdate = transactionOrId;
+      console.log(`Actualizando transacción con ID ${id}...`, transactionToUpdate);
+    }
+    
+    // Preparar los datos para actualizar según el formato
+    const updateData = typeof transactionOrId === 'string' 
+      ? {
+          type: transactionToUpdate.type,
+          amount: transactionToUpdate.amount,
+          date: transactionToUpdate.date,
+          description: transactionToUpdate.description,
+          category: transactionToUpdate.category,
+          payment_method: transactionToUpdate.payment_method,
+          person: transactionToUpdate.person,
+          receipt_id: transactionToUpdate.receipt_id,
+          updated_at: new Date().toISOString()
+        }
+      : {
+          ...transactionOrId,
+          updated_at: new Date().toISOString(),
+          id: undefined // No actualizar el id
+        };
+    
+    const { data, error } = await client
+      .from('transactions')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error al actualizar la transacción:', error);
+      return { data: null, error };
+    }
+    
+    console.log('Transacción actualizada correctamente:', data);
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error en updateTransaction:', error);
+    return { data: null, error: error as PostgrestError };
+  }
 }
 
 export async function deleteTransaction(id: string): Promise<{ error: PostgrestError | null }> {
-  const { error } = await supabase
-    .from('transactions')
-    .delete()
-    .eq('id', id);
-  
-  return { error };
+  try {
+    const client = getSupabaseClient();
+    console.log("Eliminando transacción con ID:", id);
+    
+    const { error } = await client
+      .from('transactions')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    console.log("Transacción eliminada con éxito");
+    
+    return { error };
+  } catch (error) {
+    console.error("Error al eliminar transacción:", error);
+    return { error: error as PostgrestError };
+  }
 }
 
 // Categories
@@ -275,29 +371,67 @@ export async function deleteFolder(id: string): Promise<{ error: PostgrestError 
 }
 
 // Comprobantes (Receipts)
-export async function getComprobantes(userId: string, folderId?: string): Promise<{ data: Comprobante[] | null; error: PostgrestError | null }> {
-  let query = supabase
-    .from('comprobantes')
-    .select('*')
-    .eq('user_id', userId);
-  
-  if (folderId) {
-    query = query.eq('folder_id', folderId);
+export async function getComprobantes(userId: string): Promise<{ data: Comprobante[] | null; error: PostgrestError | null }> {
+  try {
+    const client = getSupabaseClient();
+    console.log("Obteniendo comprobantes para el usuario:", userId);
+    
+    const { data, error } = await client
+      .from('comprobantes')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    console.log(`Se han recuperado ${data?.length || 0} comprobantes`);
+    
+    return { data, error };
+  } catch (error) {
+    console.error("Error al obtener comprobantes:", error);
+    return { data: null, error: error as PostgrestError };
   }
-  
-  const { data, error } = await query.order('created_at', { ascending: false });
-  
-  return { data, error };
 }
 
-export async function addComprobante(comprobante: Omit<Comprobante, 'id' | 'created_at'>): Promise<{ data: Comprobante | null; error: PostgrestError | null }> {
-  const { data, error } = await supabase
-    .from('comprobantes')
-    .insert(comprobante)
-    .select()
-    .single();
-  
-  return { data, error };
+export async function addComprobante(comprobante: Omit<Comprobante, 'id' | 'created_at'>, file: File): Promise<{ data: Comprobante | null; error: PostgrestError | null }> {
+  try {
+    const client = getSupabaseClient();
+    console.log("Añadiendo nuevo comprobante:", comprobante.description);
+    
+    // 1. Subir el archivo al storage
+    const fileName = `${Date.now()}_${file.name}`;
+    const filePath = `${comprobante.user_id}/${fileName}`;
+    
+    const { data: fileData, error: uploadError } = await client.storage
+      .from('comprobantes')
+      .upload(filePath, file);
+      
+    if (uploadError) throw uploadError;
+    
+    // 2. Obtener la URL pública del archivo
+    const { data: urlData } = client.storage
+      .from('comprobantes')
+      .getPublicUrl(filePath);
+      
+    // 3. Crear el registro en la tabla comprobantes
+    const comprobanteToInsert = {
+      ...comprobante,
+      file_url: urlData.publicUrl
+    };
+    
+    const { data, error } = await client
+      .from('comprobantes')
+      .insert(comprobanteToInsert)
+      .select()
+      .single();
+
+    if (error) throw error;
+    console.log("Comprobante añadido con éxito, ID:", data?.id);
+    
+    return { data, error };
+  } catch (error) {
+    console.error("Error al añadir comprobante:", error);
+    return { data: null, error: error as PostgrestError };
+  }
 }
 
 export async function updateComprobante(comprobante: Partial<Comprobante> & { id: string }): Promise<{ data: Comprobante | null; error: PostgrestError | null }> {
@@ -311,13 +445,45 @@ export async function updateComprobante(comprobante: Partial<Comprobante> & { id
   return { data, error };
 }
 
-export async function deleteComprobante(id: string): Promise<{ error: PostgrestError | null }> {
-  const { error } = await supabase
-    .from('comprobantes')
-    .delete()
-    .eq('id', id);
-  
-  return { error };
+export async function deleteComprobante(id: string, userId: string): Promise<{ error: PostgrestError | null }> {
+  try {
+    const client = getSupabaseClient();
+    console.log("Eliminando comprobante con ID:", id);
+    
+    // 1. Obtener el comprobante para conocer la ruta del archivo
+    const { data: comprobante, error: fetchError } = await client
+      .from('comprobantes')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+      
+    if (fetchError) throw fetchError;
+    
+    // 2. Eliminar el archivo del storage si existe
+    if (comprobante?.file_url) {
+      const filePath = comprobante.file_url.split('/').pop();
+      if (filePath) {
+        const storagePath = `${userId}/${filePath}`;
+        await client.storage.from('comprobantes').remove([storagePath]);
+      }
+    }
+    
+    // 3. Eliminar el registro de la base de datos
+    const { error } = await client
+      .from('comprobantes')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    console.log("Comprobante eliminado con éxito");
+    
+    return { error: null };
+  } catch (error) {
+    console.error("Error al eliminar comprobante:", error);
+    return { error: error as PostgrestError };
+  }
 }
 
 // Budgets

@@ -6,13 +6,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Plus, Receipt } from 'lucide-react';
 import Link from 'next/link';
 import { useSupabaseAuth } from '@/lib/contexts/SupabaseAuthContext';
-import * as supabaseDB from '@/lib/services/supabaseDatabase';
-import { addTransaction } from '@/lib/services/supabaseDatabase';
+import { updateTransaction } from '@/lib/services/supabaseDatabase';
 
-export default function NuevaTransaccion() {
+export default function EditarTransaccion() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const receiptId = searchParams.get('receiptId');
+  const transactionId = searchParams.get('id');
   const { user } = useSupabaseAuth();
   
   // Estado para la transacción
@@ -24,7 +23,7 @@ export default function NuevaTransaccion() {
     category: '',
     paymentMethod: '',
     person: '',
-    receipt: '' as string | null
+    receipt: ''
   });
   
   // Estado para gestionar categorías y métodos de pago
@@ -36,28 +35,29 @@ export default function NuevaTransaccion() {
   const [newPaymentMethod, setNewPaymentMethod] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   // Estados para las opciones en los selects
   const [people, setPeople] = useState<string[]>([]);
   const [receipts, setReceipts] = useState<any[]>([]);
+  const [originalTransaction, setOriginalTransaction] = useState<any>(null);
 
-  // Nuevo estado para indicar si el usuario vive acompañado
+  // Estado para indicar si vive acompañado
   const [viveAcompanado, setViveAcompanado] = useState(false);
-  
-  // Estados para la gestión de personas
   const [isAddingPerson, setIsAddingPerson] = useState(false);
   const [newPerson, setNewPerson] = useState('');
-
-  // Establecer la fecha actual al cargar
-  useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    setFormData(prev => ({ ...prev, date: today }));
-  }, []);
 
   // Cargar datos existentes (categorías, métodos de pago, etc.)
   useEffect(() => {
     const loadData = async () => {
       try {
+        setLoading(true);
+        
+        if (!transactionId) {
+          router.push('/transacciones');
+          return;
+        }
+
         // Cargar categorías del localStorage
         const storedCategories = localStorage.getItem('categories');
         if (storedCategories) {
@@ -91,17 +91,6 @@ export default function NuevaTransaccion() {
         const storedPeople = localStorage.getItem('people');
         if (storedPeople) {
           setPeople(JSON.parse(storedPeople));
-        } else {
-          // Si no hay personas, crear algunas por defecto si vive acompañado
-          const defaultPeople = ['Yo', 'Pareja', 'Familiar', 'Otro'];
-          setPeople(defaultPeople);
-          localStorage.setItem('people', JSON.stringify(defaultPeople));
-        }
-
-        // Cargar preferencia de si vive acompañado
-        const storedViveAcompanado = localStorage.getItem('viveAcompanado');
-        if (storedViveAcompanado) {
-          setViveAcompanado(JSON.parse(storedViveAcompanado));
         }
 
         // Cargar comprobantes del localStorage
@@ -110,34 +99,45 @@ export default function NuevaTransaccion() {
           setReceipts(JSON.parse(storedReceipts));
         }
 
-        // Si venimos con un receiptId, cargar los datos del comprobante
-        if (receiptId) {
-          loadReceiptDetails(receiptId);
+        // Cargar preferencia de si vive acompañado
+        const storedViveAcompanado = localStorage.getItem('viveAcompanado');
+        if (storedViveAcompanado) {
+          setViveAcompanado(JSON.parse(storedViveAcompanado));
+        }
+
+        // Cargar datos de la transacción a editar
+        const storedTransactions = localStorage.getItem('transactions');
+        if (storedTransactions) {
+          const transactions = JSON.parse(storedTransactions);
+          const transaction = transactions.find((t: any) => t.id === transactionId);
+
+          if (transaction) {
+            setOriginalTransaction(transaction);
+            setFormData({
+              type: transaction.type,
+              amount: transaction.amount.toString(),
+              date: transaction.date,
+              description: transaction.description || '',
+              category: transaction.category || '',
+              paymentMethod: transaction.payment_method || '',
+              person: transaction.person || '',
+              receipt: transaction.receipt_id || ''
+            });
+          } else {
+            setError('Transacción no encontrada');
+            setTimeout(() => router.push('/transacciones'), 2000);
+          }
         }
       } catch (err) {
         console.error("Error al cargar datos:", err);
         setError("Error al cargar datos. Por favor, intenta nuevamente.");
+      } finally {
+        setLoading(false);
       }
     };
 
     loadData();
-  }, [receiptId]);
-
-  const loadReceiptDetails = (id: string) => {
-    try {
-      const storedReceipts = localStorage.getItem('comprobantes');
-      if (storedReceipts) {
-        const receipts = JSON.parse(storedReceipts);
-        const receipt = receipts.find((r: any) => r.id === id);
-        
-        if (receipt) {
-          setFormData(prev => ({ ...prev, description: receipt.description }));
-        }
-      }
-    } catch (err) {
-      console.error("Error al cargar datos del comprobante:", err);
-    }
-  };
+  }, [transactionId, router]);
 
   // Guardar categorías y métodos de pago
   const saveCategories = (updatedCategories: string[]) => {
@@ -150,7 +150,7 @@ export default function NuevaTransaccion() {
     setPaymentMethods(updatedMethods);
   };
 
-  // Guardar personas en localStorage
+  // Guardar personas
   const savePeople = (updatedPeople: string[]) => {
     localStorage.setItem('people', JSON.stringify(updatedPeople));
     setPeople(updatedPeople);
@@ -235,7 +235,13 @@ export default function NuevaTransaccion() {
     setIsSubmitting(true);
     
     if (!user) {
-      setError('Debes iniciar sesión para registrar una transacción');
+      setError('Debes iniciar sesión para editar una transacción');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!transactionId || !originalTransaction) {
+      setError('No se puede editar la transacción');
       setIsSubmitting(false);
       return;
     }
@@ -265,22 +271,9 @@ export default function NuevaTransaccion() {
     }
 
     try {
-      // Guardar transacciones existentes primero en localStorage
-      const existingTransactionsJSON = localStorage.getItem('transactions');
-      let existingTransactions = [];
-      
-      if (existingTransactionsJSON) {
-        try {
-          existingTransactions = JSON.parse(existingTransactionsJSON);
-        } catch (e) {
-          console.error('Error parsing existing transactions:', e);
-        }
-      }
-      
-      // Crear nueva transacción
-      const newTransaction = {
-        id: Date.now().toString(),
-        user_id: user.id,
+      // Actualizar la transacción
+      const updatedTransaction = {
+        ...originalTransaction,
         type: formData.type as 'expense' | 'income',
         amount: parseFloat(formData.amount),
         date: formData.date,
@@ -288,29 +281,44 @@ export default function NuevaTransaccion() {
         category: formData.type === 'expense' ? formData.category : '',
         payment_method: formData.paymentMethod,
         person: formData.type === 'expense' && viveAcompanado ? formData.person : '',
-        receipt_id: formData.receipt,
-        created_at: new Date().toISOString()
+        receipt_id: formData.receipt || null,
+        updated_at: new Date().toISOString()
       };
       
-      // Guardar en Supabase
-      const { data, error: supabaseError } = await addTransaction(newTransaction);
-      
-      if (supabaseError) {
-        throw new Error(supabaseError.message);
+      // Guardar en localStorage
+      const storedTransactions = localStorage.getItem('transactions');
+      if (storedTransactions) {
+        const transactions = JSON.parse(storedTransactions);
+        const updatedTransactions = transactions.map((t: any) => 
+          t.id === transactionId ? updatedTransaction : t
+        );
+        localStorage.setItem('transactions', JSON.stringify(updatedTransactions));
       }
       
-      // Guardar localmente también
-      const updatedTransactions = [newTransaction, ...existingTransactions];
-      localStorage.setItem('transactions', JSON.stringify(updatedTransactions));
+      // Guardar en Supabase
+      const { data, error: supabaseError } = await updateTransaction(transactionId, updatedTransaction);
+      
+      if (supabaseError) {
+        console.error('Error de Supabase:', supabaseError);
+        // Continuamos con éxito ya que se guardó en localStorage
+      }
       
       // Redirigir a la lista de transacciones
       router.push('/transacciones');
     } catch (err) {
-      console.error('Error al guardar la transacción:', err);
-      setError('Error al guardar la transacción. Inténtalo de nuevo.');
+      console.error('Error al actualizar la transacción:', err);
+      setError('Error al actualizar la transacción. Inténtalo de nuevo.');
       setIsSubmitting(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6 dark-theme">
@@ -318,7 +326,7 @@ export default function NuevaTransaccion() {
         <Link href="/transacciones" className="p-2 bg-gray-800 rounded-full hover:bg-gray-700">
           <ArrowLeft className="text-gray-400" />
         </Link>
-        <h1 className="text-2xl font-bold">Nueva Transacción</h1>
+        <h1 className="text-2xl font-bold">Editar Transacción</h1>
       </div>
 
       {error && (
@@ -408,43 +416,43 @@ export default function NuevaTransaccion() {
           {formData.type === 'expense' && (
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label>Categoría:</label>
+                <label className="text-sm text-gray-400">Categoría</label>
                 <button 
                   type="button" 
                   onClick={() => setIsAddingCategory(true)}
-                  className="text-sm text-blue-600 hover:text-blue-800"
+                  className="text-sm text-blue-400 hover:text-blue-300"
                 >
                   + Agregar nueva
                 </button>
               </div>
               
               {isAddingCategory ? (
-                <div className="flex space-x-2 mb-2">
+                <div className="flex gap-2 mb-2">
                   <input
                     type="text"
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value)}
-                    className="flex-grow p-2 border rounded"
+                    className="flex-grow px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Nueva categoría"
                   />
                   <button
                     type="button"
                     onClick={handleAddCategory}
-                    className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                    className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
                   >
                     Agregar
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsAddingCategory(false)}
-                    className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+                    className="px-3 py-2 bg-gray-600 text-gray-300 rounded-md hover:bg-gray-700"
                   >
                     Cancelar
                   </button>
                 </div>
               ) : (
                 <select
-                  className="flex-grow px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   name="category"
                   value={formData.category}
                   onChange={handleChange}
@@ -462,12 +470,12 @@ export default function NuevaTransaccion() {
               {/* Gestión de categorías */}
               <div className="mt-2 flex flex-wrap gap-2">
                 {categories.map((category) => (
-                  <div key={category} className="bg-gray-100 px-3 py-1 rounded-full flex items-center">
+                  <div key={category} className="bg-gray-700 text-gray-300 px-3 py-1 rounded-full flex items-center text-sm">
                     <span className="mr-2">{category}</span>
                     <button
                       type="button"
                       onClick={() => handleDeleteCategory(category)}
-                      className="text-red-500 hover:text-red-700"
+                      className="text-red-400 hover:text-red-300"
                     >
                       ×
                     </button>
@@ -480,43 +488,43 @@ export default function NuevaTransaccion() {
           {/* Método de pago */}
           <div>
             <div className="flex justify-between items-center mb-2">
-              <label>Método de {formData.type === 'expense' ? 'pago' : 'ingreso'}:</label>
+              <label className="text-sm text-gray-400">Método de {formData.type === 'expense' ? 'pago' : 'ingreso'}</label>
               <button 
                 type="button" 
                 onClick={() => setIsAddingPaymentMethod(true)}
-                className="text-sm text-blue-600 hover:text-blue-800"
+                className="text-sm text-blue-400 hover:text-blue-300"
               >
                 + Agregar nuevo
               </button>
             </div>
             
             {isAddingPaymentMethod ? (
-              <div className="flex space-x-2 mb-2">
+              <div className="flex gap-2 mb-2">
                 <input
                   type="text"
                   value={newPaymentMethod}
                   onChange={(e) => setNewPaymentMethod(e.target.value)}
-                  className="flex-grow p-2 border rounded"
+                  className="flex-grow px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Nuevo método"
                 />
                 <button
                   type="button"
                   onClick={handleAddPaymentMethod}
-                  className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                  className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
                 >
                   Agregar
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsAddingPaymentMethod(false)}
-                  className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+                  className="px-3 py-2 bg-gray-600 text-gray-300 rounded-md hover:bg-gray-700"
                 >
                   Cancelar
                 </button>
               </div>
             ) : (
               <select
-                className="flex-grow px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 name="paymentMethod"
                 value={formData.paymentMethod}
                 onChange={handleChange}
@@ -534,12 +542,12 @@ export default function NuevaTransaccion() {
             {/* Gestión de métodos de pago */}
             <div className="mt-2 flex flex-wrap gap-2">
               {paymentMethods.map((method) => (
-                <div key={method} className="bg-gray-100 px-3 py-1 rounded-full flex items-center">
+                <div key={method} className="bg-gray-700 text-gray-300 px-3 py-1 rounded-full flex items-center text-sm">
                   <span className="mr-2">{method}</span>
                   <button
                     type="button"
                     onClick={() => handleDeletePaymentMethod(method)}
-                    className="text-red-500 hover:text-red-700"
+                    className="text-red-400 hover:text-red-300"
                   >
                     ×
                   </button>
@@ -548,45 +556,11 @@ export default function NuevaTransaccion() {
             </div>
           </div>
 
-          {/* Vive acompañado */}
-          <div className="mb-6 bg-gray-800 rounded-lg p-6">
-            <h2 className="text-lg font-semibold mb-4">Configuración personal</h2>
-            <div className="flex items-center gap-4 mb-4">
-              <span className="text-gray-300">¿Vives acompañado?</span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleViveAcompanadoChange(true)}
-                  className={`px-4 py-2 rounded-md ${
-                    viveAcompanado
-                      ? 'bg-blue-600/20 text-blue-400 border border-blue-500'
-                      : 'bg-gray-700 text-gray-300 border border-gray-600'
-                  }`}
-                >
-                  Sí
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleViveAcompanadoChange(false)}
-                  className={`px-4 py-2 rounded-md ${
-                    !viveAcompanado
-                      ? 'bg-blue-600/20 text-blue-400 border border-blue-500'
-                      : 'bg-gray-700 text-gray-300 border border-gray-600'
-                  }`}
-                >
-                  No
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Mostrar selector de persona solo si vive acompañado */}
-          {viveAcompanado && (
+          {/* Persona (opcional) */}
+          {formData.type === 'expense' && viveAcompanado && (
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="text-sm text-gray-400">
-                  {formData.type === 'expense' ? 'Quién realizó el gasto' : 'Quién tuvo el ingreso'}
-                </label>
+                <label className="text-sm text-gray-400">Quién realizó el gasto</label>
                 <button 
                   type="button" 
                   onClick={() => setIsAddingPerson(true)}
@@ -629,7 +603,9 @@ export default function NuevaTransaccion() {
                 >
                   <option value="">Seleccionar persona</option>
                   {people.map((person, index) => (
-                    <option key={index} value={person}>{person}</option>
+                    <option key={index} value={person}>
+                      {person}
+                    </option>
                   ))}
                 </select>
               )}
@@ -658,22 +634,55 @@ export default function NuevaTransaccion() {
             <div className="flex gap-2">
               <select
                 className="flex-grow px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={formData.receipt || ''}
-                onChange={(e) => setFormData(prev => ({ ...prev, receipt: e.target.value || null }))}
+                name="receipt"
+                value={formData.receipt}
+                onChange={handleChange}
               >
                 <option value="">Sin comprobante</option>
                 {receipts.map((receipt) => (
                   <option key={receipt.id} value={receipt.id}>
-                    {receipt.filename || receipt.id}
+                    {receipt.filename || receipt.description || receipt.id}
                   </option>
                 ))}
               </select>
               <Link 
-                href="/comprobantes/nuevo" 
+                href={`/comprobantes/nuevo?transactionId=${transactionId}`}
                 className="p-2 bg-indigo-500/10 border border-indigo-500 text-indigo-400 rounded-md hover:bg-indigo-500/20"
               >
-                <Plus size={18} />
+                <Receipt size={18} />
               </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Configuración personal */}
+        <div className="bg-gray-800 rounded-lg p-6 space-y-4">
+          <h2 className="text-lg font-semibold mb-2">Configuración personal</h2>
+          <div className="flex items-center gap-4">
+            <span className="text-gray-300">¿Vives acompañado?</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleViveAcompanadoChange(true)}
+                className={`px-4 py-2 rounded-md ${
+                  viveAcompanado
+                    ? 'bg-blue-600/20 text-blue-400 border border-blue-500'
+                    : 'bg-gray-700 text-gray-300 border border-gray-600'
+                }`}
+              >
+                Sí
+              </button>
+              <button
+                type="button"
+                onClick={() => handleViveAcompanadoChange(false)}
+                className={`px-4 py-2 rounded-md ${
+                  !viveAcompanado
+                    ? 'bg-blue-600/20 text-blue-400 border border-blue-500'
+                    : 'bg-gray-700 text-gray-300 border border-gray-600'
+                }`}
+              >
+                No
+              </button>
             </div>
           </div>
         </div>
@@ -685,7 +694,7 @@ export default function NuevaTransaccion() {
             className={`px-6 py-2 rounded-md ${
               isSubmitting
                 ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}
           >
             {isSubmitting ? (
@@ -694,7 +703,7 @@ export default function NuevaTransaccion() {
                 <span>Guardando...</span>
               </div>
             ) : (
-              'Guardar transacción'
+              'Actualizar transacción'
             )}
           </button>
         </div>

@@ -4,8 +4,8 @@
 
 :root {
   --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 13, 17, 23;
-  --background-end-rgb: 13, 17, 23;
+  --background-start-rgb: 26, 32, 44;
+  --background-end-rgb: 17, 24, 39;
 }
 
 body {
@@ -20,10 +20,9 @@ body {
 
 /* Aplicar tema oscuro por defecto */
 .dark-theme {
-  --tw-bg-opacity: 1;
-  background-color: rgb(17 24 39 / var(--tw-bg-opacity));
-  --tw-text-opacity: 1;
-  color: rgb(229 231 235 / var(--tw-text-opacity));
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 26, 32, 44;
+  --background-end-rgb: 17, 24, 39;
 }
 
 .dark-card {
@@ -67,4 +66,43 @@ a:hover {
   .text-balance {
     text-wrap: balance;
   }
+}
+
+/* Estilos para categorías y métodos de pago (mejorar contraste) */
+.bg-gray-700 {
+  background-color: #374151;
+}
+
+.text-gray-300 {
+  color: #d1d5db;
+}
+
+.text-gray-400 {
+  color: #9ca3af;
+}
+
+/* Para chips/tags en la interfaz */
+.rounded-full {
+  border-radius: 9999px;
+}
+
+.px-3 {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.py-1 {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+/* Asegurar que el texto en elementos blancos tenga contraste */
+option {
+  background-color: #374151;
+  color: #d1d5db;
+}
+
+select {
+  color: #d1d5db;
+  background-color: #374151;
 }

@@ -1,4 +1,4 @@
-import "./globals.css";
+import "@/app/globals.css";
 import { Inter } from "next/font/google";
 import type { Metadata } from "next";
 import ClientLayout from "../components/ClientLayout";
@@ -80,7 +80,7 @@ export default function RootLayout({
   const basePath = isGitHubPages() ? '/bolsilloapp-cursor' : '';
   
   return (
-    <html lang="es" className="h-full">
+    <html lang="es" className="h-full dark-theme">
       <head>
         <BasePathScript />
         <link
@@ -97,7 +97,7 @@ export default function RootLayout({
           </>
         )}
       </head>
-      <body className={`${inter.className} h-full text-gray-900 dark:text-gray-100 dark-theme`}>
+      <body className={`${inter.className} h-full text-gray-900 dark:text-gray-100`}>
         <ClientLayout>{children}</ClientLayout>
       </body>
     </html>  

@@ -16,7 +16,9 @@ import {
   CartesianGrid,
   Legend
 } from 'recharts';
-import { ArrowUp, ArrowDown, Calendar, TrendingUp, Wallet, CreditCard, BarChart2 } from 'lucide-react';
+import { ArrowUp, ArrowDown, Calendar, TrendingUp, Wallet, CreditCard, BarChart2, Settings, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
+import { useSupabaseAuth } from '@/lib/contexts/SupabaseAuthContext';
 
 type Transaction = {
   id: string;
@@ -34,151 +36,202 @@ type Budget = {
   id: string;
   category: string;
   amount: number;
+  spent: number;
+  period: string;
 };
 
-type TimeRange = '7d' | '30d' | 'year' | 'all';
+type TimeRange = 'week' | 'month' | 'year' | 'all';
 
 // Colores para categorías
 const COLORS = ['#00E5BE', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#facc15'];
 
 export default function DashboardPage() {
+  const { user } = useSupabaseAuth();
+  
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [timeRange, setTimeRange] = useState<TimeRange>('30d');
-  const [isClient, setIsClient] = useState(false);
-  const [dashboardLoaded, setDashboardLoaded] = useState(false);
+  const [timeRange, setTimeRange] = useState<TimeRange>('month');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [isReady, setIsReady] = useState(false);
 
   // Establecer que estamos en el cliente después de montar
   useEffect(() => {
-    setIsClient(true);
-    
     // Añadir un pequeño retraso antes de mostrar el dashboard para una animación de carga
     const timer = setTimeout(() => {
-      setDashboardLoaded(true);
+      setIsReady(true);
     }, 300);
     
     return () => clearTimeout(timer);
   }, []);
 
-  // Cargar transacciones y presupuestos
   useEffect(() => {
-    const savedTransactions = localStorage.getItem('transactions');
-    if (savedTransactions) {
-      setTransactions(JSON.parse(savedTransactions));
-    }
-
-    const savedBudgets = localStorage.getItem('budgets');
-    if (savedBudgets) {
-      setBudgets(JSON.parse(savedBudgets));
-    }
+    const loadData = async () => {
+      setLoading(true);
+      setError('');
+      
+      try {
+        if (typeof window !== 'undefined') {
+          const storedTransactions = localStorage.getItem('transactions');
+          if (storedTransactions) {
+            const parsedTransactions = JSON.parse(storedTransactions);
+            setTransactions(parsedTransactions);
+          }
+          
+          const storedBudgets = localStorage.getItem('budgets');
+          if (storedBudgets) {
+            const parsedBudgets = JSON.parse(storedBudgets);
+            setBudgets(parsedBudgets);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading dashboard data:', err);
+        setError('Error al cargar los datos del dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadData();
   }, []);
 
-  // Filtrar transacciones según el rango de tiempo
   const filteredTransactions = useMemo(() => {
     if (!transactions.length) return [];
     
     const now = new Date();
-    let cutoffDate = new Date();
+    const startDate = new Date();
     
     switch (timeRange) {
-      case '7d':
-        cutoffDate.setDate(now.getDate() - 7);
+      case 'week':
+        startDate.setDate(now.getDate() - 7);
         break;
-      case '30d':
-        cutoffDate.setDate(now.getDate() - 30);
+      case 'month':
+        startDate.setMonth(now.getMonth() - 1);
         break;
       case 'year':
-        cutoffDate.setFullYear(now.getFullYear() - 1);
+        startDate.setFullYear(now.getFullYear() - 1);
         break;
       case 'all':
-        return transactions;
+      default:
+        startDate.setFullYear(1970);
+        break;
     }
     
-    return transactions.filter(t => new Date(t.date) >= cutoffDate);
+    return transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return transactionDate >= startDate && transactionDate <= now;
+    });
   }, [transactions, timeRange]);
 
-  // Calcular totales
-  const totalIncome = useMemo(() => 
-    filteredTransactions
+  const totals = useMemo(() => {
+    const income = filteredTransactions
       .filter(t => t.type === 'income')
-      .reduce((sum, t) => sum + t.amount, 0),
-    [filteredTransactions]
-  );
-  
-  const totalExpense = useMemo(() => 
-    filteredTransactions
+      .reduce((sum, t) => sum + t.amount, 0);
+      
+    const expenses = filteredTransactions
       .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + t.amount, 0),
-    [filteredTransactions]
-  );
+      .reduce((sum, t) => sum + t.amount, 0);
+      
+    return {
+      income,
+      expenses,
+      balance: income - expenses
+    };
+  }, [filteredTransactions]);
 
-  const balance = totalIncome - totalExpense;
-
-  // Datos para el gráfico por categoría
   const expensesByCategory = useMemo(() => {
-    const categoryData: Record<string, number> = {};
+    if (!filteredTransactions.length) return [];
+    
+    const expensesMap = new Map<string, number>();
     
     filteredTransactions
-      .filter(t => t.type === 'expense')
-      .forEach(transaction => {
-        if (transaction.category) {
-          categoryData[transaction.category] = (categoryData[transaction.category] || 0) + transaction.amount;
-        }
+      .filter(t => t.type === 'expense' && t.category)
+      .forEach(t => {
+        const category = t.category || 'Sin categoría';
+        const currentAmount = expensesMap.get(category) || 0;
+        expensesMap.set(category, currentAmount + t.amount);
       });
     
-    return Object.entries(categoryData)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
+    const result = Array.from(expensesMap).map(([category, value]) => ({
+      name: category,
+      value
+    }));
+    
+    return result.sort((a, b) => b.value - a.value);
   }, [filteredTransactions]);
 
-  // Datos para el gráfico por método de pago
   const expensesByMethod = useMemo(() => {
-    const methodData: Record<string, number> = {};
+    if (!filteredTransactions.length) return [];
+    
+    const methodsMap = new Map<string, number>();
     
     filteredTransactions
       .filter(t => t.type === 'expense')
-      .forEach(transaction => {
-        const method = transaction.paymentMethod || 'Desconocido';
-        methodData[method] = (methodData[method] || 0) + transaction.amount;
+      .forEach(t => {
+        const method = t.paymentMethod || 'Desconocido';
+        const currentAmount = methodsMap.get(method) || 0;
+        methodsMap.set(method, currentAmount + t.amount);
       });
     
-    return Object.entries(methodData)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
+    const result = Array.from(methodsMap).map(([method, value]) => ({
+      name: method,
+      value
+    }));
+    
+    return result.sort((a, b) => b.value - a.value);
   }, [filteredTransactions]);
 
-  // Datos de gastos e ingresos por mes
-  const monthlySummary = useMemo(() => {
-    const monthData: Record<string, { income: number; expense: number }> = {};
-    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const monthlyData = useMemo(() => {
+    if (!filteredTransactions.length) return [];
     
-    // Obtener los últimos 6 meses
+    const monthlyMap = new Map<string, { income: number; expenses: number }>();
+    
+    // Inicializar los últimos 12 meses
     const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthName = monthNames[month.getMonth()];
-      monthData[`${monthName}`] = { income: 0, expense: 0 };
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(now);
+      date.setMonth(now.getMonth() - i);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      monthlyMap.set(monthKey, { income: 0, expenses: 0 });
     }
     
-    filteredTransactions.forEach(transaction => {
-      const date = new Date(transaction.date);
-      const monthName = monthNames[date.getMonth()];
+    // Sumar transacciones por mes
+    filteredTransactions.forEach(t => {
+      const date = new Date(t.date);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       
-      // Solo procesar transacciones de los últimos 6 meses
-      if (monthData[monthName]) {
-        if (transaction.type === 'income') {
-          monthData[monthName].income += transaction.amount;
+      if (monthlyMap.has(monthKey)) {
+        const currentData = monthlyMap.get(monthKey)!;
+        
+        if (t.type === 'income') {
+          currentData.income += t.amount;
         } else {
-          monthData[monthName].expense += transaction.amount;
+          currentData.expenses += t.amount;
         }
+        
+        monthlyMap.set(monthKey, currentData);
       }
     });
     
-    return Object.entries(monthData).map(([name, data]) => ({
-      name,
-      income: data.income,
-      expense: data.expense
-    }));
+    // Convertir a array y ordenar por fecha
+    const result = Array.from(monthlyMap).map(([month, data]) => {
+      const [year, monthNum] = month.split('-');
+      const monthName = new Date(parseInt(year), parseInt(monthNum) - 1).toLocaleString('es', { month: 'short' });
+      
+      return {
+        name: monthName,
+        income: data.income,
+        expenses: data.expenses,
+        balance: data.income - data.expenses
+      };
+    });
+    
+    // Ordenar del más antiguo al más reciente (para que el gráfico muestre correctamente la evolución)
+    return result.sort((a, b) => {
+      const aDate = new Date(a.name);
+      const bDate = new Date(b.name);
+      return aDate.getTime() - bDate.getTime();
+    }).slice(0, 6); // Mostrar solo los últimos 6 meses
   }, [filteredTransactions]);
 
   // Datos para ingresos y gastos diarios (últimos 7 días)
@@ -265,20 +318,34 @@ export default function DashboardPage() {
     return null;
   };
 
-  if (!isClient) {
-    return null;
+  if (loading) {
+    return (
+      <div className="w-full p-8 flex justify-center">
+        <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="w-full p-8">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className={`space-y-6 transition-opacity duration-500 ${dashboardLoaded ? 'opacity-100' : 'opacity-0'}`}>
+    <div className={`space-y-6 transition-opacity duration-500 ${isReady ? 'opacity-100' : 'opacity-0'}`}>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-300 to-emerald-300 text-transparent bg-clip-text">Dashboard</h1>
         
         <div className="flex items-center space-x-2 bg-[#192132] rounded-lg p-1 border border-gray-800">
           <button 
-            onClick={() => setTimeRange('7d')} 
+            onClick={() => setTimeRange('week')} 
             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
-              timeRange === '7d' 
+              timeRange === 'week' 
                 ? 'bg-gradient-to-r from-cyan-500/30 to-emerald-500/30 text-cyan-300' 
                 : 'text-gray-400 hover:text-white'
             }`}
@@ -286,9 +353,9 @@ export default function DashboardPage() {
             7 días
           </button>
           <button 
-            onClick={() => setTimeRange('30d')} 
+            onClick={() => setTimeRange('month')} 
             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
-              timeRange === '30d' 
+              timeRange === 'month' 
                 ? 'bg-gradient-to-r from-cyan-500/30 to-emerald-500/30 text-cyan-300' 
                 : 'text-gray-400 hover:text-white'
             }`}
@@ -324,18 +391,18 @@ export default function DashboardPage() {
           <div className="flex justify-between">
             <div>
               <p className="text-gray-400 mb-1 text-sm">Balance</p>
-              <p className={`text-2xl font-semibold ${balance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                ${balance.toLocaleString()}
+              <p className={`text-2xl font-semibold ${totals.balance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                ${totals.balance.toLocaleString()}
               </p>
             </div>
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${balance >= 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${totals.balance >= 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
               <Wallet size={20} />
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-gray-800">
-            <div className={`text-xs inline-flex gap-1 items-center ${balance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {balance >= 0 ? <TrendingUp size={14} /> : <ArrowDown size={14} />}
-              <span>Balance {timeRange === '7d' ? 'semanal' : timeRange === '30d' ? 'mensual' : timeRange === 'year' ? 'anual' : 'histórico'}</span>
+            <div className={`text-xs inline-flex gap-1 items-center ${totals.balance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {totals.balance >= 0 ? <TrendingUp size={14} /> : <ArrowDown size={14} />}
+              <span>Balance {timeRange === 'week' ? 'semanal' : timeRange === 'month' ? 'mensual' : timeRange === 'year' ? 'anual' : 'histórico'}</span>
             </div>
           </div>
         </div>
@@ -345,7 +412,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-gray-400 mb-1 text-sm">Ingresos</p>
               <p className="text-2xl font-semibold text-emerald-400">
-                ${totalIncome.toLocaleString()}
+                ${totals.income.toLocaleString()}
               </p>
             </div>
             <div className="w-10 h-10 bg-emerald-500/10 text-emerald-500 rounded-lg flex items-center justify-center">
@@ -355,7 +422,7 @@ export default function DashboardPage() {
           <div className="mt-3 pt-3 border-t border-gray-800">
             <div className="text-xs inline-flex gap-1 items-center text-emerald-400">
               <Calendar size={14} />
-              <span>{timeRange === '7d' ? 'Últimos 7 días' : timeRange === '30d' ? 'Últimos 30 días' : timeRange === 'year' ? 'Último año' : 'Histórico'}</span>
+              <span>{timeRange === 'week' ? 'Últimos 7 días' : timeRange === 'month' ? 'Últimos 30 días' : timeRange === 'year' ? 'Último año' : 'Histórico'}</span>
             </div>
           </div>
         </div>
@@ -365,7 +432,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-gray-400 mb-1 text-sm">Gastos</p>
               <p className="text-2xl font-semibold text-red-400">
-                ${totalExpense.toLocaleString()}
+                ${totals.expenses.toLocaleString()}
               </p>
             </div>
             <div className="w-10 h-10 bg-red-500/10 text-red-500 rounded-lg flex items-center justify-center">
@@ -375,7 +442,7 @@ export default function DashboardPage() {
           <div className="mt-3 pt-3 border-t border-gray-800">
             <div className="text-xs inline-flex gap-1 items-center text-red-400">
               <CreditCard size={14} />
-              <span>{timeRange === '7d' ? 'Últimos 7 días' : timeRange === '30d' ? 'Últimos 30 días' : timeRange === 'year' ? 'Último año' : 'Histórico'}</span>
+              <span>{timeRange === 'week' ? 'Últimos 7 días' : timeRange === 'month' ? 'Últimos 30 días' : timeRange === 'year' ? 'Último año' : 'Histórico'}</span>
             </div>
           </div>
         </div>
@@ -394,7 +461,7 @@ export default function DashboardPage() {
                   data={dailyData}
                   margin={{ top: 10, right: 30, left: 0, bottom: 30 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#444" />
                   <XAxis 
                     dataKey="name"
                     axisLine={false}

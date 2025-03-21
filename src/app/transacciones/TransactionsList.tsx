@@ -1,376 +1,390 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { Plus, Filter, Search, BarChart3, ArrowDown, ArrowUp, Trash, Eye, FileText, SlidersHorizontal, Paperclip, X, Folder, Download } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { 
+  PlusCircle, 
+  Search, 
+  ArrowUpCircle, 
+  ArrowDownCircle, 
+  Filter, 
+  FileText, 
+  Edit, 
+  Trash2, 
+  Receipt,
+  Plus,
+  ChevronDown,
+  Trash
+} from 'lucide-react';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import { useSupabaseAuth } from '@/lib/contexts/SupabaseAuthContext';
-import * as supabaseDB from '@/lib/services/supabaseDatabase';
+import { deleteTransaction } from '@/lib/services/supabaseDatabase';
 
-type Transaction = {
+interface Transaction {
   id: string;
   description: string;
   amount: number;
-  date: string;
   category: string;
+  payment_method: string;
+  date: string;
   type: 'income' | 'expense';
-  paymentMethod: string;
   person?: string;
-  receipt?: string;
-  owner?: string;
-  attachment_id?: string;
-};
+  receipt_id?: string | null;
+  created_at: string;
+}
 
 export default function TransactionsList() {
-  // Get search params for filtering
-  const searchParams = useSearchParams();
-  const categoryFilter = searchParams.get('category');
-  const typeFilter = searchParams.get('type');
-  const personFilter = searchParams.get('person');
-  const dateFilter = searchParams.get('date');
+  const { user } = useSupabaseAuth();
+  const router = useRouter();
   
-  // Estado para las transacciones
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   
-  // Estados para filtros y búsqueda
+  // Estados para filtros
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedType, setSelectedType] = useState('');
+  const [selectedPerson, setSelectedPerson] = useState('');
+  const [dateRange, setDateRange] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [selectedType, setSelectedType] = useState<'all' | 'income' | 'expense'>('all');
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('');
-  const [selectedPerson, setSelectedPerson] = useState<string>('');
-  const [selectedDateRange, setSelectedDateRange] = useState<{ from: string; to: string }>({
-    from: '',
-    to: ''
-  });
   
-  // Estados para categorías, métodos de pago y personas únicas (para filtros)
+  // Estado para confirmación de eliminación
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
+  
+  // Estados para listas únicas
   const [categories, setCategories] = useState<string[]>([]);
+  const [persons, setPersons] = useState<string[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
-  const [people, setPeople] = useState<string[]>([]);
   
-  // Estado para estadísticas
-  const [stats, setStats] = useState({
-    totalIncome: 0,
-    totalExpense: 0,
-    balance: 0
-  });
-  
-  // Estado para ordenamiento
-  const [sortConfig, setSortConfig] = useState<{
-    key: keyof Transaction | null;
-    direction: 'ascending' | 'descending';
-  }>({
-    key: 'date',
-    direction: 'descending'
-  });
-  
-  // Estado para modal de estadísticas
-  const [showStatsModal, setShowStatsModal] = useState(false);
-  
-  // Estado para modal de detalles de transacción
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
-  const [showTransactionModal, setShowTransactionModal] = useState(false);
-  
-  // Efecto para cargar transacciones del localStorage
+  // Actualizar listas únicas cuando cambian las transacciones
   useEffect(() => {
-    const loadTransactions = () => {
-      const storedTransactions = localStorage.getItem('transactions');
-      if (storedTransactions) {
-        try {
-          const parsedTransactions = JSON.parse(storedTransactions);
-          setTransactions(parsedTransactions);
-        } catch (error) {
-          console.error('Error parsing transactions:', error);
-          setTransactions([]);
+    // Extraer categorías únicas
+    const uniqueCategories = new Set<string>();
+    transactions
+      .filter(t => t.category)
+      .forEach(t => {
+        if (t.category) uniqueCategories.add(t.category);
+      });
+    setCategories(Array.from(uniqueCategories).sort());
+    
+    // Extraer personas únicas
+    const uniquePeople = new Set<string>();
+    transactions
+      .filter(t => t.person)
+      .forEach(t => {
+        if (t.person) uniquePeople.add(t.person);
+      });
+    setPersons(Array.from(uniquePeople).sort());
+    
+    // Extraer métodos de pago únicos
+    const uniqueMethods = new Set<string>();
+    transactions
+      .filter(t => t.payment_method)
+      .forEach(t => {
+        if (t.payment_method) uniqueMethods.add(t.payment_method);
+      });
+    setPaymentMethods(Array.from(uniqueMethods).sort());
+  }, [transactions]);
+  
+  // Cargar transacciones
+  useEffect(() => {
+    const loadTransactions = async () => {
+      setLoading(true);
+      
+      try {
+        if (typeof window !== 'undefined') {
+          const storedTransactions = localStorage.getItem('transactions');
+          
+          if (storedTransactions) {
+            const parsedTransactions = JSON.parse(storedTransactions);
+            setTransactions(parsedTransactions);
+            setFilteredTransactions(parsedTransactions);
+          } else {
+            setTransactions([]);
+            setFilteredTransactions([]);
+          }
         }
+      } catch (err) {
+        console.error('Error loading transactions:', err);
+        setError('Error al cargar las transacciones');
+      } finally {
+        setLoading(false);
       }
     };
     
     loadTransactions();
   }, []);
-  
-  // Efecto para extraer categorías, métodos de pago y personas únicas
-  useEffect(() => {
-    // Usamos Array.from en lugar de spread syntax para compatibilidad
-    const uniqueCategories = Array.from(new Set(transactions.map(t => t.category)));
-    const uniquePaymentMethods = Array.from(new Set(transactions.map(t => t.paymentMethod)));
-    const uniquePeople = Array.from(new Set(transactions.filter(t => t.person).map(t => t.person as string)));
-    
-    setCategories(uniqueCategories);
-    setPaymentMethods(uniquePaymentMethods);
-    setPeople(uniquePeople);
-  }, [transactions]);
-  
-  // Efecto para aplicar filtros y búsqueda
+
+  // Filtrar transacciones cuando cambien los filtros
   useEffect(() => {
     let filtered = [...transactions];
     
-    // Aplicar filtro por URL params si existen
-    if (categoryFilter) {
-      filtered = filtered.filter(t => t.category === categoryFilter);
-    }
-    
-    if (typeFilter) {
-      filtered = filtered.filter(t => t.type === typeFilter);
-    }
-    
-    if (personFilter) {
-      filtered = filtered.filter(t => t.person === personFilter);
-    }
-    
-    if (dateFilter) {
-      const targetDate = new Date(dateFilter);
-      filtered = filtered.filter(t => {
-        const transactionDate = new Date(t.date);
-        return transactionDate.toISOString().split('T')[0] === targetDate.toISOString().split('T')[0];
-      });
-    }
-    
-    // Aplicar filtro por tipo
+    // Filtro por tipo
     if (selectedType !== 'all') {
       filtered = filtered.filter(t => t.type === selectedType);
     }
     
-    // Aplicar filtro por categoría
+    // Filtro por categoría
     if (selectedCategory) {
       filtered = filtered.filter(t => t.category === selectedCategory);
     }
     
-    // Aplicar filtro por método de pago
-    if (selectedPaymentMethod) {
-      filtered = filtered.filter(t => t.paymentMethod === selectedPaymentMethod);
-    }
-    
-    // Aplicar filtro por persona
+    // Filtro por persona
     if (selectedPerson) {
       filtered = filtered.filter(t => t.person === selectedPerson);
     }
     
-    // Aplicar filtro por rango de fechas
-    if (selectedDateRange.from) {
-      filtered = filtered.filter(t => new Date(t.date) >= new Date(selectedDateRange.from));
+    // Filtro por fecha
+    if (dateRange) {
+      filtered = filtered.filter(t => t.date.startsWith(dateRange));
     }
     
-    if (selectedDateRange.to) {
-      filtered = filtered.filter(t => new Date(t.date) <= new Date(selectedDateRange.to));
-    }
-    
-    // Aplicar búsqueda por texto
-    if (searchTerm) {
+    // Filtro por término de búsqueda
+    if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        t => 
-          t.description.toLowerCase().includes(term) ||
-          t.category.toLowerCase().includes(term) ||
-          t.paymentMethod.toLowerCase().includes(term) ||
-          (t.person && t.person.toLowerCase().includes(term))
+      filtered = filtered.filter(t => 
+        t.description.toLowerCase().includes(term) ||
+        (t.category && t.category.toLowerCase().includes(term)) ||
+        (t.person && t.person.toLowerCase().includes(term)) ||
+        t.payment_method.toLowerCase().includes(term)
       );
     }
     
-    // Aplicar ordenamiento
-    if (sortConfig.key) {
-      filtered.sort((a, b) => {
-        const key = sortConfig.key as keyof Transaction;
-        const aValue = a[key];
-        const bValue = b[key];
-        
-        // Handle different types of values
-        if (typeof aValue === 'string') {
-          return sortConfig.direction === 'ascending' 
-            ? aValue.localeCompare(bValue as string)
-            : (bValue as string).localeCompare(aValue);
-        }
-        
-        if (typeof aValue === 'number') {
-          return sortConfig.direction === 'ascending'
-            ? (aValue as number) - (bValue as number)
-            : (bValue as number) - (aValue as number);
-        }
-        
-        // For dates
-        if (key === 'date' && typeof aValue === 'string' && typeof bValue === 'string') {
-          const aDate = new Date(aValue);
-          const bDate = new Date(bValue);
-          return sortConfig.direction === 'ascending'
-            ? aDate.getTime() - bDate.getTime()
-            : bDate.getTime() - aDate.getTime();
-        }
-        
-        return 0;
-      });
-    }
+    // Ordenar por fecha (más reciente primero)
+    filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     setFilteredTransactions(filtered);
+  }, [transactions, selectedType, selectedCategory, selectedPerson, dateRange, searchTerm]);
+
+  // Manejar eliminación de transacción
+  const handleDeleteTransaction = (id: string) => {
+    setTransactionToDelete(id);
+    setDeleteModalOpen(true);
+  };
+  
+  const confirmDelete = async () => {
+    if (!transactionToDelete) return;
     
-    // Calcular estadísticas
-    const totalIncome = filtered
+    try {
+      // Eliminar de localStorage (desarrollo)
+      const storedTransactions = localStorage.getItem('transactions');
+      if (storedTransactions) {
+        const parsedTransactions = JSON.parse(storedTransactions);
+        const updatedTransactions = parsedTransactions.filter((t: Transaction) => t.id !== transactionToDelete);
+        localStorage.setItem('transactions', JSON.stringify(updatedTransactions));
+        
+        // Actualizar el estado local
+        setTransactions(updatedTransactions);
+        setFilteredTransactions(applyFilters(updatedTransactions));
+      }
+      
+      // Aquí se llamaría a la API para eliminar en producción
+      // await deleteTransaction(transactionToDelete);
+      
+      setDeleteModalOpen(false);
+      setTransactionToDelete(null);
+    } catch (error) {
+      console.error('Error al eliminar la transacción:', error);
+    }
+  };
+
+  // Calcular totales
+  const totals = useMemo(() => {
+    const income = filteredTransactions
       .filter(t => t.type === 'income')
       .reduce((sum, t) => sum + t.amount, 0);
       
-    const totalExpense = filtered
+    const expenses = filteredTransactions
       .filter(t => t.type === 'expense')
       .reduce((sum, t) => sum + t.amount, 0);
       
-    setStats({
-      totalIncome,
-      totalExpense,
-      balance: totalIncome - totalExpense
-    });
-    
-  }, [
-    transactions, 
-    searchTerm, 
-    selectedType, 
-    selectedCategory, 
-    selectedPaymentMethod, 
-    selectedPerson, 
-    selectedDateRange, 
-    sortConfig,
-    categoryFilter,
-    typeFilter,
-    personFilter,
-    dateFilter
-  ]);
-  
-  // Función para borrar una transacción
-  const handleDeleteTransaction = (id: string) => {
-    if (window.confirm('¿Estás seguro de que quieres eliminar esta transacción?')) {
-      const updatedTransactions = transactions.filter(t => t.id !== id);
-      setTransactions(updatedTransactions);
-      localStorage.setItem('transactions', JSON.stringify(updatedTransactions));
-    }
-  };
-  
-  // Función para cambiar el ordenamiento
-  const requestSort = (key: keyof Transaction) => {
-    let direction: 'ascending' | 'descending' = 'ascending';
-    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
-    }
-    setSortConfig({ key, direction });
-  };
-  
-  // Función para formatear montos
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS'
-    }).format(amount);
-  };
-  
-  // Función para formatear fechas
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('es-AR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    }).format(date);
-  };
-  
-  // Mostrar detalles de una transacción
-  const showTransactionDetails = (transaction: Transaction) => {
-    setSelectedTransaction(transaction);
-    setShowTransactionModal(true);
-  };
-  
-  // Resetear todos los filtros
-  const resetFilters = () => {
-    setSelectedType('all');
-    setSelectedCategory('');
-    setSelectedPaymentMethod('');
-    setSelectedPerson('');
-    setSelectedDateRange({ from: '', to: '' });
-    setSearchTerm('');
-  };
-  
-  return (
-    <div className="container mx-auto p-4">
-      {/* Encabezado con estadísticas rápidas */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
-          <h1 className="text-2xl font-bold mb-2 sm:mb-0">Transacciones</h1>
-          
-          <div className="flex flex-wrap gap-2">
-            <Link href="/transacciones/nueva" className="flex items-center bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md">
-              <Plus className="mr-2" size={20} /> Agregar
-            </Link>
-            
-            <button 
-              onClick={() => setShowStatsModal(true)}
-              className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-md"
-            >
-              <BarChart3 className="mr-2" size={20} /> Estadísticas
-            </button>
-          </div>
-        </div>
+    return {
+      income,
+      expenses,
+      balance: income - expenses
+    };
+  }, [filteredTransactions]);
+
+  // Aplicar filtros a las transacciones
+  const applyFilters = (transactionsToFilter: Transaction[]): Transaction[] => {
+    return transactionsToFilter.filter((transaction) => {
+      // Filtrar por término de búsqueda
+      const matchesSearch = searchTerm === '' || 
+        transaction.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        transaction.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        transaction.payment_method.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Filtrar por categoría
+      const matchesCategory = selectedCategory === '' || transaction.category === selectedCategory;
+      
+      // Filtrar por tipo
+      const matchesType = selectedType === '' || transaction.type === selectedType;
+      
+      // Filtrar por persona
+      const matchesPerson = selectedPerson === '' || transaction.person === selectedPerson;
+      
+      // Filtrar por fecha
+      let matchesDate = true;
+      if (dateRange !== '') {
+        const transactionDate = new Date(transaction.date);
+        const today = new Date();
+        const daysAgo = (days: number) => new Date(today.getTime() - days * 24 * 60 * 60 * 1000);
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg">
-            <p className="text-green-700 dark:text-green-300 text-sm font-medium">Ingresos</p>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-200">{formatCurrency(stats.totalIncome)}</p>
-          </div>
-          
-          <div className="bg-red-50 dark:bg-red-900/30 p-4 rounded-lg">
-            <p className="text-red-700 dark:text-red-300 text-sm font-medium">Gastos</p>
-            <p className="text-2xl font-bold text-red-600 dark:text-red-200">{formatCurrency(stats.totalExpense)}</p>
-          </div>
-          
-          <div className={`${stats.balance >= 0 ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-orange-50 dark:bg-orange-900/30'} p-4 rounded-lg`}>
-            <p className={`${stats.balance >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-orange-700 dark:text-orange-300'} text-sm font-medium`}>Balance</p>
-            <p className={`text-2xl font-bold ${stats.balance >= 0 ? 'text-blue-600 dark:text-blue-200' : 'text-orange-600 dark:text-orange-200'}`}>
-              {formatCurrency(stats.balance)}
-            </p>
-          </div>
+        switch (dateRange) {
+          case 'today':
+            matchesDate = transactionDate.toDateString() === today.toDateString();
+            break;
+          case 'week':
+            matchesDate = transactionDate >= daysAgo(7);
+            break;
+          case 'month':
+            matchesDate = transactionDate >= daysAgo(30);
+            break;
+          case 'year':
+            matchesDate = transactionDate >= daysAgo(365);
+            break;
+        }
+      }
+      
+      return matchesSearch && matchesCategory && matchesType && matchesPerson && matchesDate;
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="w-full p-8 flex justify-center">
+        <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="w-full p-8">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          {error}
         </div>
       </div>
+    );
+  }
+
+  // Renderizado de cada transacción
+  const renderTransaction = (transaction: Transaction) => (
+    <div key={transaction.id} className="p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-gray-600 transition-colors">
+      <div className="flex justify-between items-start mb-2">
+        <div>
+          <h3 className="font-medium">
+            {transaction.description || 'Sin descripción'}
+            {transaction.receipt_id && (
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-900 text-blue-300">
+                <Receipt size={12} className="mr-1" />
+                Comprobante
+              </span>
+            )}
+          </h3>
+          <p className="text-sm text-gray-400">{transaction.category || 'Sin categoría'}</p>
+        </div>
+        <p className={`font-semibold ${transaction.type === 'income' ? 'text-green-500' : 'text-red-500'}`}>
+          {transaction.type === 'income' ? '+' : '-'} ${Math.abs(transaction.amount).toLocaleString()}
+        </p>
+      </div>
       
-      {/* Barra de búsqueda y filtros */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-1 text-sm">
+          <span className="text-gray-400">{new Date(transaction.date).toLocaleDateString()}</span>
+          {transaction.payment_method && (
+            <>
+              <span className="text-gray-500 mx-1">•</span>
+              <span className="text-gray-400">{transaction.payment_method}</span>
+            </>
+          )}
+          {transaction.person && (
+            <>
+              <span className="text-gray-500 mx-1">•</span>
+              <span className="text-gray-400">{transaction.person}</span>
+            </>
+          )}
+        </div>
+        
+        <div className="flex gap-1">
+          <button 
+            className="p-1.5 rounded-full hover:bg-gray-700 text-gray-400 hover:text-blue-400"
+            onClick={() => window.location.href = `/transacciones/editar?id=${transaction.id}`}
+            title="Editar transacción"
+          >
+            <Edit size={16} />
+          </button>
+          
+          <button 
+            className="p-1.5 rounded-full hover:bg-gray-700 text-gray-400 hover:text-green-400"
+            onClick={() => window.location.href = `/comprobantes/nuevo?transactionId=${transaction.id}`}
+            title={transaction.receipt_id ? "Ver/cambiar comprobante" : "Añadir comprobante"}
+          >
+            <Receipt size={16} />
+          </button>
+          
+          <button 
+            className="p-1.5 rounded-full hover:bg-gray-700 text-gray-400 hover:text-red-400"
+            onClick={() => handleDeleteTransaction(transaction.id)}
+            title="Eliminar transacción"
+          >
+            <Trash size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="w-full p-4">
+      {/* Header y botón de nueva transacción */}
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold mb-4 md:mb-0">Transacciones</h1>
+        <Link 
+          href="/transacciones/nueva" 
+          className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors"
+        >
+          <PlusCircle size={20} />
+          <span>Nueva Transacción</span>
+        </Link>
+      </div>
+      
+      {/* Buscador y filtros */}
+      <div className="bg-gray-800 p-4 rounded-lg mb-6">
+        {/* Buscador */}
+        <div className="flex gap-2 mb-4">
           <div className="relative flex-grow">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-              <Search className="text-gray-400" size={20} />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search size={18} className="text-gray-400" />
             </div>
             <input
               type="text"
-              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" 
               placeholder="Buscar transacciones..."
+              className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center justify-center bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 p-2.5 rounded-lg"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600"
           >
-            <Filter className="mr-2" size={20} />
-            <span className="hidden sm:inline">Filtros</span>
+            <Filter size={18} />
+            <span>Filtros</span>
           </button>
-          
-          {/* Botón de reseteo visible solo si hay filtros activos */}
-          {(selectedType !== 'all' || selectedCategory || selectedPaymentMethod || selectedPerson || selectedDateRange.from || selectedDateRange.to || searchTerm) && (
-            <button
-              onClick={resetFilters}
-              className="flex items-center justify-center bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-800/50 text-red-700 dark:text-red-300 p-2.5 rounded-lg"
-            >
-              <X className="mr-2" size={20} />
-              <span className="hidden sm:inline">Limpiar filtros</span>
-            </button>
-          )}
         </div>
         
-        {/* Panel de filtros - visible solo cuando se hace clic en el botón de filtros */}
+        {/* Filtros expandibles */}
         {showFilters && (
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Filtro por tipo */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo</label>
+              <label className="block text-sm text-gray-400 mb-1">Tipo</label>
               <select
-                className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value as 'all' | 'income' | 'expense')}
               >
@@ -380,342 +394,141 @@ export default function TransactionsList() {
               </select>
             </div>
             
-            {/* Filtro por categoría */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Categoría</label>
+              <label className="block text-sm text-gray-400 mb-1">Categoría</label>
               <select
-                className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
               >
                 <option value="">Todas</option>
-                {categories.sort().map((category) => (
-                  <option key={category} value={category}>{category}</option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
                 ))}
               </select>
             </div>
             
-            {/* Filtro por método de pago */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Método de pago</label>
+              <label className="block text-sm text-gray-400 mb-1">Persona</label>
               <select
-                className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                value={selectedPaymentMethod}
-                onChange={(e) => setSelectedPaymentMethod(e.target.value)}
-              >
-                <option value="">Todos</option>
-                {paymentMethods.sort().map((method) => (
-                  <option key={method} value={method}>{method}</option>
-                ))}
-              </select>
-            </div>
-            
-            {/* Filtro por persona */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Persona</label>
-              <select
-                className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={selectedPerson}
                 onChange={(e) => setSelectedPerson(e.target.value)}
               >
                 <option value="">Todas</option>
-                {people.sort().map((person) => (
-                  <option key={person} value={person}>{person}</option>
+                {persons.map((person) => (
+                  <option key={person} value={person}>
+                    {person}
+                  </option>
                 ))}
               </select>
             </div>
             
-            {/* Filtro por fecha desde */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Desde</label>
+              <label className="block text-sm text-gray-400 mb-1">Fecha</label>
               <input
-                type="date"
-                className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                value={selectedDateRange.from}
-                onChange={(e) => setSelectedDateRange({ ...selectedDateRange, from: e.target.value })}
-              />
-            </div>
-            
-            {/* Filtro por fecha hasta */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hasta</label>
-              <input
-                type="date"
-                className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                value={selectedDateRange.to}
-                onChange={(e) => setSelectedDateRange({ ...selectedDateRange, to: e.target.value })}
+                type="month"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value)}
               />
             </div>
           </div>
         )}
+      </div>
+      
+      {/* Resumen de totales */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-emerald-500/10 border border-emerald-500 rounded-lg p-4">
+          <div className="flex items-center gap-3 mb-2">
+            <ArrowUpCircle className="text-emerald-500" size={24} />
+            <h3 className="text-lg font-semibold text-emerald-500">Ingresos</h3>
+          </div>
+          <p className="text-2xl font-bold text-emerald-500">{formatCurrency(totals.income)}</p>
+        </div>
+        
+        <div className="bg-red-500/10 border border-red-500 rounded-lg p-4">
+          <div className="flex items-center gap-3 mb-2">
+            <ArrowDownCircle className="text-red-500" size={24} />
+            <h3 className="text-lg font-semibold text-red-500">Gastos</h3>
+          </div>
+          <p className="text-2xl font-bold text-red-500">{formatCurrency(totals.expenses)}</p>
+        </div>
+        
+        <div className={`${
+          totals.balance >= 0 
+            ? 'bg-blue-500/10 border border-blue-500' 
+            : 'bg-orange-500/10 border border-orange-500'
+        } rounded-lg p-4`}>
+          <div className="flex items-center gap-3 mb-2">
+            <h3 className={`text-lg font-semibold ${
+              totals.balance >= 0 ? 'text-blue-500' : 'text-orange-500'
+            }`}>
+              Balance
+            </h3>
+          </div>
+          <p className={`text-2xl font-bold ${
+            totals.balance >= 0 ? 'text-blue-500' : 'text-orange-500'
+          }`}>
+            {formatCurrency(totals.balance)}
+          </p>
+        </div>
       </div>
       
       {/* Lista de transacciones */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        {filteredTransactions.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
-                    onClick={() => requestSort('date')}
-                  >
-                    <div className="flex items-center">
-                      Fecha
-                      {sortConfig.key === 'date' && (
-                        sortConfig.direction === 'ascending' 
-                          ? <ArrowUp size={14} className="ml-1" />
-                          : <ArrowDown size={14} className="ml-1" />
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
-                    onClick={() => requestSort('description')}
-                  >
-                    <div className="flex items-center">
-                      Descripción
-                      {sortConfig.key === 'description' && (
-                        sortConfig.direction === 'ascending' 
-                          ? <ArrowUp size={14} className="ml-1" />
-                          : <ArrowDown size={14} className="ml-1" />
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
-                    onClick={() => requestSort('category')}
-                  >
-                    <div className="flex items-center">
-                      Categoría
-                      {sortConfig.key === 'category' && (
-                        sortConfig.direction === 'ascending' 
-                          ? <ArrowUp size={14} className="ml-1" />
-                          : <ArrowDown size={14} className="ml-1" />
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
-                    onClick={() => requestSort('amount')}
-                  >
-                    <div className="flex items-center">
-                      Monto
-                      {sortConfig.key === 'amount' && (
-                        sortConfig.direction === 'ascending' 
-                          ? <ArrowUp size={14} className="ml-1" />
-                          : <ArrowDown size={14} className="ml-1" />
-                      )}
-                    </div>
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
-                {filteredTransactions.map((transaction) => (
-                  <tr key={transaction.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                      {formatDate(transaction.date)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-200">
-                      <div className="flex items-center">
-                        {transaction.description || <span className="text-gray-400 italic">Sin descripción</span>}
-                        {transaction.attachment_id && (
-                          <Paperclip size={16} className="ml-2 text-gray-400" />
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                      {transaction.category}
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
-                      transaction.type === 'income' 
-                        ? 'text-green-600 dark:text-green-400' 
-                        : 'text-red-600 dark:text-red-400'
-                    }`}>
-                      {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => showTransactionDetails(transaction)}
-                        className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 mr-3"
-                      >
-                        <Eye size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTransaction(transaction.id)}
-                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                      >
-                        <Trash size={18} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <div className="mt-6 space-y-4">
+        {loading ? (
+          <div className="text-center p-8">
+            <div className="inline-block animate-spin h-8 w-8 border-4 border-gray-400 border-t-blue-500 rounded-full mb-2"></div>
+            <p className="text-gray-400">Cargando transacciones...</p>
           </div>
+        ) : filteredTransactions.length > 0 ? (
+          filteredTransactions.map(renderTransaction)
         ) : (
-          <div className="p-8 text-center">
-            <div className="text-gray-500 dark:text-gray-400 mb-4">No se encontraron transacciones</div>
-            <Link href="/transacciones/nueva" className="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md">
-              <Plus className="mr-2" size={20} /> Agregar transacción
-            </Link>
+          <div className="text-center p-8 bg-gray-800 rounded-lg border border-gray-700">
+            <p className="text-gray-400 mb-2">No hay transacciones que coincidan con los filtros seleccionados.</p>
+            <button 
+              onClick={() => {
+                // Resetear filtros
+                setSelectedCategory('');
+                setSelectedType('');
+                setSelectedPerson('');
+                setDateRange('');
+                setSearchTerm('');
+              }}
+              className="text-blue-500 hover:text-blue-400"
+            >
+              Limpiar filtros
+            </button>
           </div>
         )}
       </div>
       
-      {/* Modal de estadísticas (implementación básica) */}
-      {showStatsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-2xl w-full">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Estadísticas</h2>
-                <button onClick={() => setShowStatsModal(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg">
-                    <p className="text-green-700 dark:text-green-300 text-sm font-medium">Total Ingresos</p>
-                    <p className="text-2xl font-bold text-green-600 dark:text-green-200">{formatCurrency(stats.totalIncome)}</p>
-                  </div>
-                  
-                  <div className="bg-red-50 dark:bg-red-900/30 p-4 rounded-lg">
-                    <p className="text-red-700 dark:text-red-300 text-sm font-medium">Total Gastos</p>
-                    <p className="text-2xl font-bold text-red-600 dark:text-red-200">{formatCurrency(stats.totalExpense)}</p>
-                  </div>
-                  
-                  <div className={`${stats.balance >= 0 ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-orange-50 dark:bg-orange-900/30'} p-4 rounded-lg`}>
-                    <p className={`${stats.balance >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-orange-700 dark:text-orange-300'} text-sm font-medium`}>Balance</p>
-                    <p className={`text-2xl font-bold ${stats.balance >= 0 ? 'text-blue-600 dark:text-blue-200' : 'text-orange-600 dark:text-orange-200'}`}>
-                      {formatCurrency(stats.balance)}
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Aquí podrían agregarse más estadísticas o gráficos en el futuro */}
-              </div>
-              
-              <div className="mt-8 text-right">
-                <button 
-                  onClick={() => setShowStatsModal(false)}
-                  className="px-4 py-2 bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Modal de detalles de transacción */}
-      {showTransactionModal && selectedTransaction && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-2xl w-full">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Detalles de la Transacción
-                </h2>
-                <button onClick={() => setShowTransactionModal(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                  <div className="flex justify-between mb-2">
-                    <span className="text-gray-500 dark:text-gray-400">Tipo:</span>
-                    <span className={`font-medium ${
-                      selectedTransaction.type === 'income' 
-                        ? 'text-green-600 dark:text-green-400' 
-                        : 'text-red-600 dark:text-red-400'
-                    }`}>
-                      {selectedTransaction.type === 'income' ? 'Ingreso' : 'Gasto'}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between mb-2">
-                    <span className="text-gray-500 dark:text-gray-400">Monto:</span>
-                    <span className={`font-medium ${
-                      selectedTransaction.type === 'income' 
-                        ? 'text-green-600 dark:text-green-400' 
-                        : 'text-red-600 dark:text-red-400'
-                    }`}>
-                      {formatCurrency(selectedTransaction.amount)}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between mb-2">
-                    <span className="text-gray-500 dark:text-gray-400">Fecha:</span>
-                    <span className="font-medium text-gray-900 dark:text-gray-200">
-                      {formatDate(selectedTransaction.date)}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between mb-2">
-                    <span className="text-gray-500 dark:text-gray-400">Categoría:</span>
-                    <span className="font-medium text-gray-900 dark:text-gray-200">
-                      {selectedTransaction.category}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between mb-2">
-                    <span className="text-gray-500 dark:text-gray-400">Método de pago:</span>
-                    <span className="font-medium text-gray-900 dark:text-gray-200">
-                      {selectedTransaction.paymentMethod}
-                    </span>
-                  </div>
-                  
-                  {selectedTransaction.person && (
-                    <div className="flex justify-between mb-2">
-                      <span className="text-gray-500 dark:text-gray-400">Persona:</span>
-                      <span className="font-medium text-gray-900 dark:text-gray-200">
-                        {selectedTransaction.person}
-                      </span>
-                    </div>
-                  )}
-                  
-                  {selectedTransaction.description && (
-                    <div className="mt-4">
-                      <span className="text-gray-500 dark:text-gray-400 block mb-1">Descripción:</span>
-                      <p className="text-gray-900 dark:text-gray-200 p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-600">
-                        {selectedTransaction.description}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              <div className="mt-8 flex justify-between">
-                <button 
-                  onClick={() => {
-                    handleDeleteTransaction(selectedTransaction.id);
-                    setShowTransactionModal(false);
-                  }}
-                  className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
-                >
-                  Eliminar
-                </button>
-                
-                <button 
-                  onClick={() => setShowTransactionModal(false)}
-                  className="px-4 py-2 bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600"
-                >
-                  Cerrar
-                </button>
-              </div>
+      {/* Modal de confirmación de eliminación */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full border border-gray-700">
+            <h3 className="text-xl font-semibold mb-4">Confirmar eliminación</h3>
+            <p className="text-gray-300 mb-6">¿Estás seguro de que deseas eliminar esta transacción? Esta acción no se puede deshacer.</p>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setTransactionToDelete(null);
+                }}
+                className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Eliminar
+              </button>
             </div>
           </div>
         </div>
