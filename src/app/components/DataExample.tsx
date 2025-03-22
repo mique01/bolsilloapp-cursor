@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { fetchData, createRecord } from '@/app/lib/supabaseData';
+import { fetchData, createRecord } from '@/app/lib/supabaseData.js';
 
 interface Todo {
   id: number;

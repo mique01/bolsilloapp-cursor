@@ -11,7 +11,9 @@ const githubPagesConfig = {
     unoptimized: true, // No optimizar imágenes para evitar problemas con rutas
   },
   trailingSlash: true, // Añadir barras al final para compatibilidad con GitHub Pages
-  assetPrefix: process.env.NODE_ENV === 'production' ? '/bolsilloapp' : '', // Ajustar según el nombre de tu repo
+  assetPrefix: process.env.NODE_ENV === 'production' ? '/bolsilloapp-cursor' : '', // Ajustar según el nombre de tu repo
+  basePath: process.env.NODE_ENV === 'production' ? '/bolsilloapp-cursor' : '',
+  distDir: 'out', // Directorio de salida para la compilación
 };
 
 // Configuración estándar para Vercel o desarrollo local
@@ -25,11 +27,43 @@ const standardConfig = {
 };
 
 // Aplicar la configuración correcta según el entorno
-const nextConfig = isGitHubPages 
-  ? { ...standardConfig, ...githubPagesConfig } 
+const nextConfig = isGitHubPages
+  ? { ...standardConfig, ...githubPagesConfig }
   : standardConfig;
 
-// Ajustar headers para CORS en caso de problemas de conexión
+// Configuración de webpack para ambos entornos
+nextConfig.webpack = (config, { isServer }) => {
+  if (!isServer) {
+    // Polyfills para browser APIs no disponibles en Node
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      net: false,
+      tls: false,
+      crypto: require.resolve('crypto-browserify'),
+      stream: require.resolve('stream-browserify'),
+      path: require.resolve('path-browserify'),
+      zlib: require.resolve('browserify-zlib'),
+      http: require.resolve('stream-http'),
+      https: require.resolve('https-browserify'),
+      assert: require.resolve('assert'),
+      os: require.resolve('os-browserify/browser'),
+      buffer: require.resolve('buffer/'),
+      util: require.resolve('util/'),
+    };
+    
+    // Add buffer polyfill
+    config.plugins.push(
+      new (require('webpack')).ProvidePlugin({
+        Buffer: ['buffer', 'Buffer'],
+        process: 'process/browser',
+      })
+    );
+  }
+  return config;
+};
+
+// Ajustar headers para todos los entornos
 nextConfig.headers = async () => {
   return [
     {
@@ -51,20 +85,5 @@ nextConfig.headers = async () => {
     },
   ];
 };
-
-// Ignorar errores de registro de servicios durante la compilación
-if (isGitHubPages) {
-  nextConfig.webpack = (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback = {
-        fs: false,
-        net: false,
-        tls: false,
-        crypto: require.resolve('crypto-browserify'),
-      };
-    }
-    return config;
-  };
-}
 
 module.exports = nextConfig; 

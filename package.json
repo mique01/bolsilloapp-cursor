@@ -4,13 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build --no-lint",
+    "build": "next build",
     "postbuild": "node scripts/fix-duplicated-paths.js",
-    "start": "next start",
-    "clean": "rimraf .next && rimraf node_modules/.cache",
+    "start": "next start -p 3001",
+    "clean": "rimraf .next && rimraf node_modules/.cache && rimraf out",
     "lint": "next lint",
     "export": "next export",
-    "deploy": "next build && touch out/.nojekyll && git add out/ && git commit -m \"Deploy to gh-pages\" && git subtree push --prefix out origin gh-pages"
+    "deploy": "next build && touch out/.nojekyll && git add out/ && git commit -m \"Deploy to gh-pages\" && git subtree push --prefix out origin gh-pages",
+    "analyze": "ANALYZE=true next build"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^0.0.48",
@@ -19,28 +20,41 @@
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.1",
     "ai": "^3.3.20",
+    "assert": "^2.1.0",
+    "browserify-zlib": "^0.2.0",
     "chart.js": "^4.4.8",
+    "crypto-browserify": "^3.12.1",
     "date-fns": "^3.6.0",
     "firebase": "^10.13.0",
     "framer-motion": "^11.3.31",
+    "https-browserify": "^1.0.0",
     "lucide-react": "^0.436.0",
     "next": "14.2.7",
+    "path-browserify": "^1.0.1",
     "react": "^18",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^18",
     "react-markdown": "^9.0.1",
     "recharts": "^2.15.1",
-    "replicate": "^0.32.0"
+    "replicate": "^0.32.0",
+    "stream-browserify": "^3.0.0",
+    "stream-http": "^3.2.0",
+    "util": "^0.12.5"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^14.2.25",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "buffer": "^6.0.3",
     "eslint": "^8",
     "eslint-config-next": "14.2.7",
+    "os-browserify": "^0.3.0",
     "postcss": "^8",
+    "process": "^0.11.10",
     "rimraf": "^6.0.1",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "webpack": "^5.98.0"
   }
 }
