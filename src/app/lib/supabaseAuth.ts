@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import supabase from '@/lib/supabase';
 import { User, Session } from '@supabase/supabase-js';
 
 // Sign up with email and password

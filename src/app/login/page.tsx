@@ -1,13 +1,24 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useSupabaseAuth } from '@/lib/contexts/SupabaseAuthContext';
-import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Wifi, WifiOff, Settings } from 'lucide-react';
 
-export default function LoginPage() {
+// Componente contenedor con Suspense
+const LoginPage = () => {
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center min-h-screen">Cargando...</div>}>
+      <LoginContent />
+    </Suspense>
+  );
+};
+
+// Componente principal que usa hooks
+const LoginContent = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { signIn, signUp } = useSupabaseAuth();
   
   const [email, setEmail] = useState('');
@@ -18,12 +29,99 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [networkStatus, setNetworkStatus] = useState<'online' | 'offline' | 'checking'>('checking');
+  const [supabaseStatus, setSupabaseStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
+
+  // Comprobar si llegamos aquí debido a un problema de conexión
+  useEffect(() => {
+    const redirectReason = searchParams.get('redirect_reason');
+    if (redirectReason === 'auth_error') {
+      setError('Se detectó un problema de conexión con el servidor de autenticación. Intenta usar el diagnóstico de conexión.');
+      setShowDiagnostics(true);
+    }
+    
+    // Verificar conexión a internet
+    setNetworkStatus(navigator.onLine ? 'online' : 'offline');
+    
+    const handleOnline = () => setNetworkStatus('online');
+    const handleOffline = () => setNetworkStatus('offline');
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    // Verificar conexión a Supabase
+    checkSupabaseConnection();
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [searchParams]);
+  
+  // Función para comprobar la conexión con Supabase
+  const checkSupabaseConnection = async () => {
+    setSupabaseStatus('connecting');
+    
+    try {
+      // Intentar hacer un ping a Supabase
+      const response = await fetch('https://cxfnamwzbfrdaahfsqkc.supabase.co/ping', {
+        method: 'GET',
+        mode: 'no-cors',
+        cache: 'no-cache',
+        headers: { 'Accept': 'application/json' },
+      });
+      
+      setSupabaseStatus('connected');
+      return true;
+    } catch (error) {
+      console.error('Error al conectar con Supabase:', error);
+      setSupabaseStatus('error');
+      return false;
+    }
+  };
+  
+  // Función para solucionar problemas de conexión
+  const fixConnectionIssues = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Guardar configuración para usar proxy CORS
+      localStorage.setItem('use_direct_ip', 'true');
+      localStorage.setItem('supabase_direct_ip', 'corsproxy.io/?https://cxfnamwzbfrdaahfsqkc.supabase.co');
+      
+      // Limpiar caché de autenticación
+      localStorage.removeItem('supabase_auth_session');
+      localStorage.removeItem('supabase-auth');
+      
+      // Verificar conexión nuevamente
+      const connected = await checkSupabaseConnection();
+      
+      if (connected) {
+        setSuccess('Configuración actualizada. Intenta iniciar sesión nuevamente.');
+      } else {
+        setError('No se pudo establecer conexión. Intenta usar una red diferente o contacta al soporte.');
+      }
+    } catch (error) {
+      setError('Error al intentar solucionar la conexión: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
     setLoading(true);
+    
+    // Verificar conectividad primero
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setError('Sin conexión a internet. Conéctate y vuelve a intentarlo.');
+      setLoading(false);
+      return;
+    }
     
     try {
       if (isRegistering) {
@@ -42,17 +140,78 @@ export default function LoginPage() {
         setIsRegistering(false);
       } else {
         // Login the user
-        const error: any = await signIn(email, password);
-        
-        if (error) {
-          throw new Error(error.message);
+        try {
+          console.log("Intentando iniciar sesión con:", email);
+          
+          // Establecer un timeout para la operación completa
+          const loginPromise = signIn(email, password);
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error("Tiempo de espera agotado. El servidor no responde.")), 20000);
+          });
+          
+          // Usar Promise.race para manejar timeouts
+          const error: any = await Promise.race([loginPromise, timeoutPromise]);
+
+          if (error) {
+            console.error("Error de inicio de sesión:", error);
+            
+            // Crear un mensaje de error más amigable basado en el tipo de error
+            if (typeof error === 'object') {
+              if (error.message) {
+                if (error.message.includes('fetch') || error.message.includes('network') || error.message.includes('timeout')) {
+                  setError('Error de conexión con el servidor. Verifica tu conexión a Internet.');
+                  setShowDiagnostics(true);
+                } else if (error.message.includes('auth') || error.message.toLowerCase().includes('credentials')) {
+                  setError('Error de autenticación. Verifica tus credenciales.');
+                } else {
+                  setError(error.message || 'Error al iniciar sesión');
+                }
+              } else {
+                setError('Error desconocido al iniciar sesión');
+              }
+            } else {
+              setError(String(error) || 'Error al iniciar sesión');
+            }
+            
+            setLoading(false);
+            return;
+          }
+
+          // Si llegamos aquí, el inicio de sesión fue exitoso
+          console.log("Inicio de sesión exitoso, redirigiendo...");
+          router.push('/');
+        } catch (err: any) {
+          console.error("Error en handleSubmit:", err);
+          
+          // Mostrar un mensaje más amigable según el tipo de error
+          if (err instanceof Error) {
+            if (err.message.includes('fetch') || err.message.includes('network') || err.message.includes('timeout')) {
+              setError('Error de conexión con el servidor. Verifica tu conexión a Internet y asegúrate de que la URL de Supabase sea accesible desde tu red.');
+              setShowDiagnostics(true);
+            } else if (err.message.toLowerCase().includes('credentials')) {
+              setError('Credenciales incorrectas. Verifica tu email y contraseña.');
+            } else {
+              setError(err.message || 'Error al iniciar sesión');
+            }
+          } else {
+            setError(String(err) || 'Error desconocido al iniciar sesión');
+          }
+          
+          setLoading(false);
         }
-        
-        // Redirect to dashboard on successful login
-        router.push('/dashboard');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ocurrió un error. Por favor, inténtalo de nuevo.');
+      let errorMessage = 'Ocurrió un error. Por favor, inténtalo de nuevo.';
+      
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      } else if (err && typeof err === 'object' && 'message' in err) {
+        errorMessage = String(err.message);
+      } else if (err) {
+        errorMessage = String(err);
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -61,6 +220,82 @@ export default function LoginPage() {
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
+
+  // Sección de diagnóstico de conexión
+  const diagnosticsSection = showDiagnostics && (
+    <div className="mt-8 p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
+      <h3 className="text-md font-medium text-gray-300 flex items-center">
+        <Settings className="h-5 w-5 mr-2 text-indigo-400" />
+        Diagnóstico de conexión
+      </h3>
+      
+      <div className="mt-3 space-y-3 text-sm">
+        <div className="flex items-center justify-between">
+          <span>Estado de la red:</span>
+          <span className={`flex items-center ${networkStatus === 'online' ? 'text-green-400' : 'text-red-400'}`}>
+            {networkStatus === 'online' ? (
+              <><Wifi className="h-4 w-4 mr-1" /> Conectado</>
+            ) : (
+              <><WifiOff className="h-4 w-4 mr-1" /> Desconectado</>
+            )}
+          </span>
+        </div>
+        
+        <div className="flex items-center justify-between">
+          <span>Conexión a Supabase:</span>
+          <span className={`
+            ${supabaseStatus === 'connected' ? 'text-green-400' : ''}
+            ${supabaseStatus === 'connecting' ? 'text-yellow-400' : ''}
+            ${supabaseStatus === 'error' ? 'text-red-400' : ''}
+          `}>
+            {supabaseStatus === 'connected' ? 'Conectado' : 
+             supabaseStatus === 'connecting' ? 'Verificando...' : 
+             'Error de conexión'}
+          </span>
+        </div>
+        
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={fixConnectionIssues}
+            disabled={loading || networkStatus === 'offline'}
+            className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
+              loading || networkStatus === 'offline'
+                ? 'bg-gray-700 cursor-not-allowed' 
+                : 'bg-indigo-700 hover:bg-indigo-800'
+            } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
+          >
+            {loading ? 'Aplicando solución...' : 'Solucionar problemas de conexión'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const testConnectionWithoutCORS = async () => {
+    try {
+      const startTime = performance.now();
+      const response = await fetch('https://cxfnamwzbfrdaahfsqkc.supabase.co/ping', {
+        method: 'GET',
+        mode: 'no-cors',
+        cache: 'no-cache',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      const endTime = performance.now();
+      
+      // ... existing code ...
+    } catch (error) {
+      // ... existing code ...
+    }
+  };
+
+  if (showDiagnostics) {
+    // Activar modo proxy para superar problemas de CORS
+    localStorage.setItem('use_cors_proxy', 'true');
+    localStorage.setItem('supabase_direct_ip', 'corsproxy.io/?https://cxfnamwzbfrdaahfsqkc.supabase.co');
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
@@ -79,6 +314,14 @@ export default function LoginPage() {
         {error && (
           <div className="bg-red-900/40 border border-red-500 text-red-400 px-4 py-3 rounded-md">
             {error}
+            {!showDiagnostics && error.includes('conexión') && (
+              <button 
+                onClick={() => setShowDiagnostics(true)}
+                className="block mt-2 text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                Mostrar diagnóstico de conexión
+              </button>
+            )}
           </div>
         )}
         
@@ -210,21 +453,34 @@ export default function LoginPage() {
           </div>
         </form>
         
+        {diagnosticsSection}
+        
         <div className="mt-6 text-center">
           <button
+            type="button"
             onClick={() => {
               setIsRegistering(!isRegistering);
               setError(null);
               setSuccess(null);
             }}
-            className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
+            className="text-indigo-400 hover:text-indigo-300 transition-colors text-sm"
           >
-            {isRegistering 
-              ? '¿Ya tienes una cuenta? Inicia sesión' 
-              : '¿No tienes una cuenta? Regístrate'}
+            {isRegistering ? '¿Ya tienes una cuenta? Inicia sesión' : '¿No tienes una cuenta? Regístrate'}
+          </button>
+        </div>
+        
+        <div className="mt-2 text-center">
+          <button
+            type="button"
+            onClick={() => setShowDiagnostics(!showDiagnostics)}
+            className="text-gray-500 hover:text-gray-400 transition-colors text-xs"
+          >
+            {showDiagnostics ? 'Ocultar diagnóstico de conexión' : 'Mostrar diagnóstico de conexión'}
           </button>
         </div>
       </div>
     </div>
   );
-} 
+};
+
+export default LoginPage; 

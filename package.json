@@ -7,6 +7,7 @@
     "build": "next build --no-lint",
     "postbuild": "node scripts/fix-duplicated-paths.js",
     "start": "next start",
+    "clean": "rimraf .next && rimraf node_modules/.cache",
     "lint": "next lint",
     "export": "next export",
     "deploy": "next build && touch out/.nojekyll && git add out/ && git commit -m \"Deploy to gh-pages\" && git subtree push --prefix out origin gh-pages"
@@ -38,6 +39,7 @@
     "eslint": "^8",
     "eslint-config-next": "14.2.7",
     "postcss": "^8",
+    "rimraf": "^6.0.1",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }

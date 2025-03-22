@@ -60,155 +60,6 @@ export default function TransactionsList() {
   const [persons, setPersons] = useState<string[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
   
-  // Actualizar listas únicas cuando cambian las transacciones
-  useEffect(() => {
-    // Extraer categorías únicas
-    const uniqueCategories = new Set<string>();
-    transactions
-      .filter(t => t.category)
-      .forEach(t => {
-        if (t.category) uniqueCategories.add(t.category);
-      });
-    setCategories(Array.from(uniqueCategories).sort());
-    
-    // Extraer personas únicas
-    const uniquePeople = new Set<string>();
-    transactions
-      .filter(t => t.person)
-      .forEach(t => {
-        if (t.person) uniquePeople.add(t.person);
-      });
-    setPersons(Array.from(uniquePeople).sort());
-    
-    // Extraer métodos de pago únicos
-    const uniqueMethods = new Set<string>();
-    transactions
-      .filter(t => t.payment_method)
-      .forEach(t => {
-        if (t.payment_method) uniqueMethods.add(t.payment_method);
-      });
-    setPaymentMethods(Array.from(uniqueMethods).sort());
-  }, [transactions]);
-  
-  // Cargar transacciones
-  useEffect(() => {
-    const loadTransactions = async () => {
-      setLoading(true);
-      
-      try {
-        if (typeof window !== 'undefined') {
-          const storedTransactions = localStorage.getItem('transactions');
-          
-          if (storedTransactions) {
-            const parsedTransactions = JSON.parse(storedTransactions);
-            setTransactions(parsedTransactions);
-            setFilteredTransactions(parsedTransactions);
-          } else {
-            setTransactions([]);
-            setFilteredTransactions([]);
-          }
-        }
-      } catch (err) {
-        console.error('Error loading transactions:', err);
-        setError('Error al cargar las transacciones');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    loadTransactions();
-  }, []);
-
-  // Filtrar transacciones cuando cambien los filtros
-  useEffect(() => {
-    let filtered = [...transactions];
-    
-    // Filtro por tipo
-    if (selectedType !== 'all') {
-      filtered = filtered.filter(t => t.type === selectedType);
-    }
-    
-    // Filtro por categoría
-    if (selectedCategory) {
-      filtered = filtered.filter(t => t.category === selectedCategory);
-    }
-    
-    // Filtro por persona
-    if (selectedPerson) {
-      filtered = filtered.filter(t => t.person === selectedPerson);
-    }
-    
-    // Filtro por fecha
-    if (dateRange) {
-      filtered = filtered.filter(t => t.date.startsWith(dateRange));
-    }
-    
-    // Filtro por término de búsqueda
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(t => 
-        t.description.toLowerCase().includes(term) ||
-        (t.category && t.category.toLowerCase().includes(term)) ||
-        (t.person && t.person.toLowerCase().includes(term)) ||
-        t.payment_method.toLowerCase().includes(term)
-      );
-    }
-    
-    // Ordenar por fecha (más reciente primero)
-    filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    
-    setFilteredTransactions(filtered);
-  }, [transactions, selectedType, selectedCategory, selectedPerson, dateRange, searchTerm]);
-
-  // Manejar eliminación de transacción
-  const handleDeleteTransaction = (id: string) => {
-    setTransactionToDelete(id);
-    setDeleteModalOpen(true);
-  };
-  
-  const confirmDelete = async () => {
-    if (!transactionToDelete) return;
-    
-    try {
-      // Eliminar de localStorage (desarrollo)
-      const storedTransactions = localStorage.getItem('transactions');
-      if (storedTransactions) {
-        const parsedTransactions = JSON.parse(storedTransactions);
-        const updatedTransactions = parsedTransactions.filter((t: Transaction) => t.id !== transactionToDelete);
-        localStorage.setItem('transactions', JSON.stringify(updatedTransactions));
-        
-        // Actualizar el estado local
-        setTransactions(updatedTransactions);
-        setFilteredTransactions(applyFilters(updatedTransactions));
-      }
-      
-      // Aquí se llamaría a la API para eliminar en producción
-      // await deleteTransaction(transactionToDelete);
-      
-      setDeleteModalOpen(false);
-      setTransactionToDelete(null);
-    } catch (error) {
-      console.error('Error al eliminar la transacción:', error);
-    }
-  };
-
-  // Calcular totales
-  const totals = useMemo(() => {
-    const income = filteredTransactions
-      .filter(t => t.type === 'income')
-      .reduce((sum, t) => sum + t.amount, 0);
-      
-    const expenses = filteredTransactions
-      .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + t.amount, 0);
-      
-    return {
-      income,
-      expenses,
-      balance: income - expenses
-    };
-  }, [filteredTransactions]);
-
   // Aplicar filtros a las transacciones
   const applyFilters = (transactionsToFilter: Transaction[]): Transaction[] => {
     return transactionsToFilter.filter((transaction) => {
@@ -222,7 +73,7 @@ export default function TransactionsList() {
       const matchesCategory = selectedCategory === '' || transaction.category === selectedCategory;
       
       // Filtrar por tipo
-      const matchesType = selectedType === '' || transaction.type === selectedType;
+      const matchesType = selectedType === '' || selectedType === 'all' || transaction.type === selectedType;
       
       // Filtrar por persona
       const matchesPerson = selectedPerson === '' || transaction.person === selectedPerson;
@@ -247,12 +98,141 @@ export default function TransactionsList() {
           case 'year':
             matchesDate = transactionDate >= daysAgo(365);
             break;
+          default:
+            // Si dateRange es un valor de mes (YYYY-MM)
+            if (dateRange.match(/^\d{4}-\d{2}$/)) {
+              const [year, month] = dateRange.split('-').map(Number);
+              const transactionYear = transactionDate.getFullYear();
+              const transactionMonth = transactionDate.getMonth() + 1; // getMonth() retorna 0-11
+              matchesDate = transactionYear === year && transactionMonth === month;
+            }
+            break;
         }
       }
       
       return matchesSearch && matchesCategory && matchesType && matchesPerson && matchesDate;
     });
   };
+  
+  // Actualizar listas únicas cuando cambian las transacciones
+  useEffect(() => {
+    // Extraer categorías únicas
+    const uniqueCategories = Array.from(new Set<string>(
+      transactions
+        .filter(t => t.category)
+        .map(t => t.category as string)
+    )).sort();
+    setCategories(uniqueCategories);
+    
+    // Extraer personas únicas
+    const uniquePeople = Array.from(new Set<string>(
+      transactions
+        .filter(t => t.person)
+        .map(t => t.person as string)
+    )).sort();
+    setPersons(uniquePeople);
+    
+    // Extraer métodos de pago únicos
+    const uniqueMethods = Array.from(new Set<string>(
+      transactions
+        .filter(t => t.payment_method)
+        .map(t => t.payment_method as string)
+    )).sort();
+    setPaymentMethods(uniqueMethods);
+    
+    // Aplicar filtros iniciales
+    setFilteredTransactions(applyFilters(transactions));
+  }, [transactions]);
+  
+  // Cargar transacciones
+  useEffect(() => {
+    const loadTransactions = async () => {
+      setLoading(true);
+      
+      try {
+        if (typeof window !== 'undefined') {
+          const storedTransactions = localStorage.getItem('transactions');
+          
+          if (storedTransactions) {
+            const parsedTransactions = JSON.parse(storedTransactions);
+            console.log('Transacciones cargadas:', parsedTransactions);
+            setTransactions(parsedTransactions);
+          } else {
+            console.log('No hay transacciones almacenadas');
+            setTransactions([]);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading transactions:', err);
+        setError('Error al cargar las transacciones');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadTransactions();
+  }, []);
+
+  // Filtrar transacciones cuando cambien los filtros
+  useEffect(() => {
+    const filtered = applyFilters(transactions);
+    console.log('Transacciones filtradas:', filtered.length);
+    setFilteredTransactions(filtered);
+  }, [transactions, selectedType, selectedCategory, selectedPerson, dateRange, searchTerm]);
+
+  // Manejar eliminación de transacción
+  const handleDeleteTransaction = (id: string) => {
+    setTransactionToDelete(id);
+    setDeleteModalOpen(true);
+  };
+  
+  const confirmDelete = async () => {
+    if (!transactionToDelete) return;
+    
+    try {
+      // Eliminar de localStorage (desarrollo)
+      const storedTransactions = localStorage.getItem('transactions');
+      if (storedTransactions) {
+        const parsedTransactions = JSON.parse(storedTransactions);
+        const updatedTransactions = parsedTransactions.filter((t: Transaction) => t.id !== transactionToDelete);
+        localStorage.setItem('transactions', JSON.stringify(updatedTransactions));
+        
+        // Actualizar el estado local
+        setTransactions(updatedTransactions);
+      }
+      
+      // Aquí se llamaría a la API para eliminar en producción
+      // await deleteTransaction(transactionToDelete);
+      
+      setDeleteModalOpen(false);
+      setTransactionToDelete(null);
+    } catch (error) {
+      console.error('Error al eliminar la transacción:', error);
+    }
+  };
+
+  // Calcular totales
+  const totals = useMemo(() => {
+    console.log('Calculando totales con', filteredTransactions.length, 'transacciones');
+    
+    const income = filteredTransactions
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+      
+    const expenses = filteredTransactions
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+      
+    const balance = income - expenses;
+    
+    console.log('Totales calculados:', { income, expenses, balance });
+    
+    return {
+      income,
+      expenses,
+      balance
+    };
+  }, [filteredTransactions]);
 
   if (loading) {
     return (
@@ -277,7 +257,7 @@ export default function TransactionsList() {
     <div key={transaction.id} className="p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-gray-600 transition-colors">
       <div className="flex justify-between items-start mb-2">
         <div>
-          <h3 className="font-medium">
+          <h3 className="font-medium text-gray-200">
             {transaction.description || 'Sin descripción'}
             {transaction.receipt_id && (
               <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-900 text-blue-300">
@@ -289,7 +269,7 @@ export default function TransactionsList() {
           <p className="text-sm text-gray-400">{transaction.category || 'Sin categoría'}</p>
         </div>
         <p className={`font-semibold ${transaction.type === 'income' ? 'text-green-500' : 'text-red-500'}`}>
-          {transaction.type === 'income' ? '+' : '-'} ${Math.abs(transaction.amount).toLocaleString()}
+          {transaction.type === 'income' ? '+' : '-'} ${Math.abs(parseFloat(transaction.amount.toString())).toLocaleString()}
         </p>
       </div>
       
@@ -343,7 +323,7 @@ export default function TransactionsList() {
     <div className="w-full p-4">
       {/* Header y botón de nueva transacción */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold mb-4 md:mb-0">Transacciones</h1>
+        <h1 className="text-2xl font-bold mb-4 md:mb-0 text-gray-100">Transacciones</h1>
         <Link 
           href="/transacciones/nueva" 
           className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors"
@@ -364,14 +344,14 @@ export default function TransactionsList() {
             <input
               type="text"
               placeholder="Buscar transacciones..."
-              className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-200"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 text-gray-300"
           >
             <Filter size={18} />
             <span>Filtros</span>
@@ -384,9 +364,9 @@ export default function TransactionsList() {
             <div>
               <label className="block text-sm text-gray-400 mb-1">Tipo</label>
               <select
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-300"
                 value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value as 'all' | 'income' | 'expense')}
+                onChange={(e) => setSelectedType(e.target.value)}
               >
                 <option value="all">Todos</option>
                 <option value="income">Ingresos</option>
@@ -397,7 +377,7 @@ export default function TransactionsList() {
             <div>
               <label className="block text-sm text-gray-400 mb-1">Categoría</label>
               <select
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-300"
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
               >
@@ -413,7 +393,7 @@ export default function TransactionsList() {
             <div>
               <label className="block text-sm text-gray-400 mb-1">Persona</label>
               <select
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-300"
                 value={selectedPerson}
                 onChange={(e) => setSelectedPerson(e.target.value)}
               >
@@ -430,7 +410,7 @@ export default function TransactionsList() {
               <label className="block text-sm text-gray-400 mb-1">Fecha</label>
               <input
                 type="month"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-300"
                 value={dateRange}
                 onChange={(e) => setDateRange(e.target.value)}
               />
@@ -510,7 +490,7 @@ export default function TransactionsList() {
       {deleteModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full border border-gray-700">
-            <h3 className="text-xl font-semibold mb-4">Confirmar eliminación</h3>
+            <h3 className="text-xl font-semibold mb-4 text-gray-100">Confirmar eliminación</h3>
             <p className="text-gray-300 mb-6">¿Estás seguro de que deseas eliminar esta transacción? Esta acción no se puede deshacer.</p>
             
             <div className="flex justify-end space-x-3">

@@ -1,4 +1,4 @@
-import { supabase } from '../supabase';
+import supabase from '../supabase';
 import { PostgrestError } from '@supabase/supabase-js';
 
 export type Transaction = {

@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Upload, X, Check, ArrowLeft, Image as ImageIcon } from 'lucide-react';
 import { addComprobante } from '@/lib/services/supabaseDatabase';
 import { useSupabaseAuth } from '@/lib/contexts/SupabaseAuthContext';
 
-export default function NuevoComprobante() {
+function NuevoComprobanteContent() {
   const { user } = useSupabaseAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -118,15 +118,14 @@ export default function NuevoComprobante() {
     try {
       // Crear objeto de comprobante
       const newReceipt = {
-        id: Date.now().toString(),
         user_id: user.id,
-        filename: file.name,
-        file_type: file.type,
         description: description || file.name,
-        category: category || '',
+        file_name: file.name,
+        file_type: file.type,
+        file_url: '', // Se llenará en la función addComprobante
+        folder_id: '', // Valor por defecto, se puede cambiar si hay carpetas
         date: date || new Date().toISOString().split('T')[0],
         transaction_id: transactionId || null,
-        created_at: new Date().toISOString()
       };
       
       // Guardar en Supabase
@@ -149,7 +148,7 @@ export default function NuevoComprobante() {
           const transactions = JSON.parse(storedTransactions);
           const updatedTransactions = transactions.map((t: any) => 
             t.id === transactionId 
-              ? { ...t, receipt_id: newReceipt.id } 
+              ? { ...t, receipt_id: Date.now().toString() }
               : t
           );
           localStorage.setItem('transactions', JSON.stringify(updatedTransactions));
@@ -180,32 +179,32 @@ export default function NuevoComprobante() {
         >
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-2xl font-bold text-gray-100">
           {transactionId ? 'Asociar Comprobante' : 'Nuevo Comprobante'}
         </h1>
       </div>
       
       {transactionDetails && (
         <div className="mb-6 bg-gray-800 p-4 rounded-lg border border-gray-700">
-          <h2 className="text-lg font-semibold mb-2">Detalles de la Transacción</h2>
+          <h2 className="text-lg font-semibold mb-2 text-gray-100">Detalles de la Transacción</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-gray-400 text-sm">Descripción:</p>
-              <p>{transactionDetails.description || 'Sin descripción'}</p>
+              <p className="text-gray-200">{transactionDetails.description || 'Sin descripción'}</p>
             </div>
             <div>
               <p className="text-gray-400 text-sm">Monto:</p>
               <p className={transactionDetails.type === 'income' ? 'text-green-500' : 'text-red-500'}>
-                {transactionDetails.type === 'income' ? '+' : '-'} ${Math.abs(transactionDetails.amount).toLocaleString()}
+                {transactionDetails.type === 'income' ? '+' : '-'} ${Math.abs(parseFloat(transactionDetails.amount.toString())).toLocaleString()}
               </p>
             </div>
             <div>
               <p className="text-gray-400 text-sm">Fecha:</p>
-              <p>{new Date(transactionDetails.date).toLocaleDateString()}</p>
+              <p className="text-gray-200">{new Date(transactionDetails.date).toLocaleDateString()}</p>
             </div>
             <div>
               <p className="text-gray-400 text-sm">Categoría:</p>
-              <p>{transactionDetails.category || 'Sin categoría'}</p>
+              <p className="text-gray-200">{transactionDetails.category || 'Sin categoría'}</p>
             </div>
           </div>
         </div>
@@ -268,7 +267,7 @@ export default function NuevoComprobante() {
                 <div className="p-3 bg-blue-500/10 text-blue-400 rounded-full">
                   <Upload size={24} />
                 </div>
-                <p className="font-medium">Haz clic para seleccionar un archivo</p>
+                <p className="font-medium text-gray-200">Haz clic para seleccionar un archivo</p>
                 <p className="text-sm text-gray-400">o arrastra y suelta aquí</p>
                 <p className="text-xs text-gray-500 mt-2">JPG, PNG o PDF (máx. 5MB)</p>
               </div>
@@ -289,7 +288,7 @@ export default function NuevoComprobante() {
           <input
             type="text"
             id="description"
-            className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-200"
             placeholder="Descripción del comprobante"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -302,7 +301,7 @@ export default function NuevoComprobante() {
           <input
             type="text"
             id="category"
-            className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-200"
             placeholder="Categoría (opcional)"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
@@ -315,7 +314,7 @@ export default function NuevoComprobante() {
           <input
             type="date"
             id="date"
-            className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-200"
             value={date}
             onChange={(e) => setDate(e.target.value)}
           />
@@ -351,5 +350,16 @@ export default function NuevoComprobante() {
         </div>
       </form>
     </div>
+  );
+}
+
+// Componente principal que envuelve el contenido en un Suspense
+export default function NuevoComprobante() {
+  return (
+    <Suspense fallback={<div className="container mx-auto p-4 flex justify-center">
+      <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+    </div>}>
+      <NuevoComprobanteContent />
+    </Suspense>
   );
 } 

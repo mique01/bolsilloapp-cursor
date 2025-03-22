@@ -6,6 +6,9 @@
   --foreground-rgb: 255, 255, 255;
   --background-start-rgb: 26, 32, 44;
   --background-end-rgb: 17, 24, 39;
+  --tw-text-opacity: 1;
+  --tw-bg-opacity: 1;
+  --tw-border-opacity: 1;
 }
 
 body {
@@ -34,14 +37,29 @@ body {
 
 /* Estilizar los inputs para modo oscuro */
 input, select, textarea {
-  background-color: rgb(31 41 55 / var(--tw-bg-opacity));
-  color: rgb(229 231 235 / var(--tw-text-opacity));
-  border-color: rgb(55 65 81 / var(--tw-border-opacity));
+  background-color: rgb(55 65 81 / var(--tw-bg-opacity)) !important;
+  color: rgb(209 213 219 / var(--tw-text-opacity)) !important;
+  border-color: rgb(75 85 99 / var(--tw-border-opacity)) !important;
+}
+
+input::placeholder, select::placeholder, textarea::placeholder {
+  color: rgb(156 163 175 / var(--tw-text-opacity)) !important;
 }
 
 /* Asegurar que el texto sea visible en todos los elementos */
 * {
-  color: rgb(229 231 235 / var(--tw-text-opacity));
+  color-scheme: dark;
+}
+
+/* Mejorar la visibilidad de los selectores y opciones */
+select option {
+  background-color: rgb(55 65 81 / var(--tw-bg-opacity));
+  color: rgb(209 213 219 / var(--tw-text-opacity));
+}
+
+/* Estilos para opciones seleccionadas */
+select:focus option:checked {
+  background-color: rgb(59 130 246 / 0.2);
 }
 
 /* Estilos para tablas */
@@ -70,15 +88,23 @@ a:hover {
 
 /* Estilos para categorías y métodos de pago (mejorar contraste) */
 .bg-gray-700 {
-  background-color: #374151;
+  background-color: #374151 !important;
+}
+
+.bg-gray-800 {
+  background-color: #1f2937 !important;
+}
+
+.bg-gray-900 {
+  background-color: #111827 !important;
 }
 
 .text-gray-300 {
-  color: #d1d5db;
+  color: #d1d5db !important;
 }
 
 .text-gray-400 {
-  color: #9ca3af;
+  color: #9ca3af !important;
 }
 
 /* Para chips/tags en la interfaz */
@@ -98,11 +124,28 @@ a:hover {
 
 /* Asegurar que el texto en elementos blancos tenga contraste */
 option {
-  background-color: #374151;
-  color: #d1d5db;
+  background-color: #374151 !important;
+  color: #d1d5db !important;
 }
 
 select {
-  color: #d1d5db;
-  background-color: #374151;
+  color: #d1d5db !important;
+  background-color: #374151 !important;
+}
+
+/* Corregir problemas con fondos blancos y texto claro */
+.bg-white, .bg-gray-100, .bg-gray-200, .bg-gray-300 {
+  background-color: #374151 !important;
+  color: #d1d5db !important;
+}
+
+.text-black, .text-gray-700, .text-gray-800, .text-gray-900 {
+  color: #d1d5db !important;
+}
+
+/* Estilos específicos para chips de categorías y métodos de pago */
+.flex.flex-wrap.gap-2 > div {
+  background-color: #374151 !important;
+  color: #d1d5db !important;
+  border: 1px solid #4b5563;
 }

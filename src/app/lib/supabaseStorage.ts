@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import supabase from '@/lib/supabase';
 
 // Since getStorageUrl is not exported from the supabase.ts file, 
 // let's define a function to get the public URL

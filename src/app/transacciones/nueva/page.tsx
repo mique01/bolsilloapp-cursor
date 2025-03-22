@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Plus, Receipt } from 'lucide-react';
@@ -9,7 +9,7 @@ import { useSupabaseAuth } from '@/lib/contexts/SupabaseAuthContext';
 import * as supabaseDB from '@/lib/services/supabaseDatabase';
 import { addTransaction } from '@/lib/services/supabaseDatabase';
 
-export default function NuevaTransaccion() {
+function NuevaTransaccionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const receiptId = searchParams.get('receiptId');
@@ -462,12 +462,12 @@ export default function NuevaTransaccion() {
               {/* Gestión de categorías */}
               <div className="mt-2 flex flex-wrap gap-2">
                 {categories.map((category) => (
-                  <div key={category} className="bg-gray-100 px-3 py-1 rounded-full flex items-center">
+                  <div key={category} className="bg-gray-700 text-gray-300 px-3 py-1 rounded-full flex items-center text-sm">
                     <span className="mr-2">{category}</span>
                     <button
                       type="button"
                       onClick={() => handleDeleteCategory(category)}
-                      className="text-red-500 hover:text-red-700"
+                      className="text-red-400 hover:text-red-300"
                     >
                       ×
                     </button>
@@ -480,43 +480,43 @@ export default function NuevaTransaccion() {
           {/* Método de pago */}
           <div>
             <div className="flex justify-between items-center mb-2">
-              <label>Método de {formData.type === 'expense' ? 'pago' : 'ingreso'}:</label>
+              <label className="text-sm text-gray-400">Método de {formData.type === 'expense' ? 'pago' : 'ingreso'}</label>
               <button 
                 type="button" 
                 onClick={() => setIsAddingPaymentMethod(true)}
-                className="text-sm text-blue-600 hover:text-blue-800"
+                className="text-sm text-blue-400 hover:text-blue-300"
               >
                 + Agregar nuevo
               </button>
             </div>
             
             {isAddingPaymentMethod ? (
-              <div className="flex space-x-2 mb-2">
+              <div className="flex gap-2 mb-2">
                 <input
                   type="text"
                   value={newPaymentMethod}
                   onChange={(e) => setNewPaymentMethod(e.target.value)}
-                  className="flex-grow p-2 border rounded"
+                  className="flex-grow px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Nuevo método"
                 />
                 <button
                   type="button"
                   onClick={handleAddPaymentMethod}
-                  className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                  className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
                 >
                   Agregar
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsAddingPaymentMethod(false)}
-                  className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+                  className="px-3 py-2 bg-gray-600 text-gray-300 rounded-md hover:bg-gray-700"
                 >
                   Cancelar
                 </button>
               </div>
             ) : (
               <select
-                className="flex-grow px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 name="paymentMethod"
                 value={formData.paymentMethod}
                 onChange={handleChange}
@@ -534,12 +534,12 @@ export default function NuevaTransaccion() {
             {/* Gestión de métodos de pago */}
             <div className="mt-2 flex flex-wrap gap-2">
               {paymentMethods.map((method) => (
-                <div key={method} className="bg-gray-100 px-3 py-1 rounded-full flex items-center">
+                <div key={method} className="bg-gray-700 text-gray-300 px-3 py-1 rounded-full flex items-center text-sm">
                   <span className="mr-2">{method}</span>
                   <button
                     type="button"
                     onClick={() => handleDeletePaymentMethod(method)}
-                    className="text-red-500 hover:text-red-700"
+                    className="text-red-400 hover:text-red-300"
                   >
                     ×
                   </button>
@@ -700,5 +700,15 @@ export default function NuevaTransaccion() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function NuevaTransaccion() {
+  return (
+    <Suspense fallback={<div className="p-6 flex justify-center">
+      <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+    </div>}>
+      <NuevaTransaccionContent />
+    </Suspense>
   );
 } 

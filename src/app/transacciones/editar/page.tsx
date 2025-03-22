@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Plus, Receipt } from 'lucide-react';
@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { useSupabaseAuth } from '@/lib/contexts/SupabaseAuthContext';
 import { updateTransaction } from '@/lib/services/supabaseDatabase';
 
-export default function EditarTransaccion() {
+function EditarTransaccionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const transactionId = searchParams.get('id');
@@ -709,5 +709,15 @@ export default function EditarTransaccion() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function EditarTransaccion() {
+  return (
+    <Suspense fallback={<div className="p-6 flex justify-center">
+      <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+    </div>}>
+      <EditarTransaccionContent />
+    </Suspense>
   );
 } 

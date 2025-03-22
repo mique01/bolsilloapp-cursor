@@ -2,6 +2,8 @@ import "@/app/globals.css";
 import { Inter } from "next/font/google";
 import type { Metadata } from "next";
 import ClientLayout from "../components/ClientLayout";
+import { SupabaseAuthProvider } from '@/lib/contexts/SupabaseAuthContext';
+import ConnectionManager from './components/ConnectionManager';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -48,9 +50,9 @@ const BasePathScript = () => {
             }
             
             console.log('App config:', window.appConfig);
-            console.log('Current hostname:', window.location.hostname);
             
-            // Redirigir si hay un prefijo incorrecto en la URL
+            // IMPORTANTE: Si detectamos que estamos usando la aplicación desde una dirección local pero 
+            // la URL incluye el prefijo /bolsilloapp-cursor incorrectamente, redirigimos
             if ((isLocalHost || isLocalIP) && window.location.pathname.startsWith('/bolsilloapp-cursor')) {
               const newPath = window.location.pathname.replace('/bolsilloapp-cursor', '');
               window.location.href = window.location.origin + (newPath || '/');
@@ -66,9 +68,15 @@ const BasePathScript = () => {
   );
 };
 
-// Función para determinar si estamos en entorno GitHub Pages
+// Función para determinar si estamos en entorno GitHub Pages - esta se ejecuta en tiempo de construcción
 const isGitHubPages = () => {
-  return process.env.NODE_ENV === 'production' && !process.env.VERCEL;
+  return process.env.GITHUB_ACTIONS === 'true';
+};
+
+// Función para determinar el basePath según el entorno
+const getBasePath = () => {
+  // Solo usamos el prefijo en GitHub Pages
+  return isGitHubPages() ? '/bolsilloapp-cursor' : '';
 };
 
 export default function RootLayout({
@@ -76,29 +84,20 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Solo usar basePath para GitHub Pages, no para local o Vercel
-  const basePath = isGitHubPages() ? '/bolsilloapp-cursor' : '';
+  // Determinar el base path según el entorno
+  const basePath = getBasePath();
   
   return (
     <html lang="es" className="h-full dark-theme">
       <head>
         <BasePathScript />
-        <link
-          rel="stylesheet"
-          href={`${basePath}/tailwind.css`}
-        />
-        {/* Cargar scripts solo si estamos en GitHub Pages */}
-        {isGitHubPages() && (
-          <>
-            <script defer src={`${basePath}/webpack.js`}></script>
-            <script defer src={`${basePath}/fd9d1056.js`}></script>
-            <script defer src={`${basePath}/23.js`}></script>
-            <script defer src={`${basePath}/main-app.js`}></script>
-          </>
-        )}
+        {/* No usamos link para tailwind.css ya que se importa vía @import */}
       </head>
       <body className={`${inter.className} h-full text-gray-900 dark:text-gray-100`}>
-        <ClientLayout>{children}</ClientLayout>
+        <SupabaseAuthProvider>
+          <ClientLayout>{children}</ClientLayout>
+          <ConnectionManager />
+        </SupabaseAuthProvider>
       </body>
     </html>  
   );
